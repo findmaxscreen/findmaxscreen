@@ -167,6 +167,17 @@ function activeFilters() {
   return chips;
 }
 
+/* Only the controls that live inside the collapsed panel. The search box and
+ * the region chip sit outside it and are already visible, so opening the panel
+ * for them would point at nothing. Sort is excluded too - it reorders the list
+ * without hiding anything, so a shut panel never misrepresents the count. */
+function panelFiltersActive() {
+  return ["film70", "dome", "commercial", "include_removed"]
+           .some((key) => CONTROLS[key].checked)
+      || ["country", "projector", "film", "ar"]
+           .some((key) => CONTROLS[key].value !== "");
+}
+
 function resetFilters() {
   CONTROLS.q.value = "";
   for (const key of ["film70", "dome", "commercial", "include_removed"]) {
@@ -859,6 +870,10 @@ async function start() {
 
   const tab = restoreFromUrl();
   wire();
+  // A shared link can arrive with filters already applied. Landing on a shut
+  // panel would make the narrowed result set look like the whole dataset, so
+  // open it when - and only when - the URL actually set something.
+  if (panelFiltersActive()) $("filterpanel").open = true;
   // keepPage so a shared ?page=3 link lands where it says it will.
   setTab(tab, { keepPage: true });
 }

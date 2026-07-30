@@ -122,7 +122,55 @@ a:hover { text-decoration-thickness: 2px; }
   line-height: 1.6;
   color: var(--muted-flat);
 }
+.why > p { margin: 8px 0 0; }
 .why strong { color: var(--ink); }
+
+/* --------------------------------------------------- disclosure summaries */
+
+/* Shared by the masthead note and the filter panel. Both open closed: the note
+   is read once, and the filters are a tool you reach for rather than something
+   you need in view to read a list. Native <details> keeps the keyboard and
+   screen-reader behaviour without a line of JavaScript. */
+.why > summary,
+.filterpanel > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  padding: 2px 0;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 14px;
+  list-style: none;          /* Firefox */
+}
+.why > summary::-webkit-details-marker,
+.filterpanel > summary::-webkit-details-marker { display: none; }
+
+.why > summary:hover,
+.filterpanel > summary:hover { color: var(--accent); }
+
+.why > summary:focus-visible,
+.filterpanel > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* The caret is the only state indicator, so it has to be legible at a glance:
+   pointing right when shut, down when open. */
+.chev {
+  flex: none;
+  font-size: 15px;
+  color: var(--muted-flat);
+  transition: transform 120ms ease;
+}
+[open] > summary .chev { transform: rotate(90deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chev { transition: none; }
+}
+
+.filterpanel > summary { font-weight: 600; margin-top: 14px; }
 
 .themetoggle {
   position: absolute;

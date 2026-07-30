@@ -102,6 +102,9 @@
     <symbol id="i-cross" viewBox="0 0 24 24">
       <path d="M6 6l12 12M18 6L6 18"/>
     </symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24">
+      <path d="M8.5 5.5 15.5 12l-7 6.5"/>
+    </symbol>
     <symbol id="i-globe" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="8.5"/>
       <path d="M3.5 12h17M12 3.5c4 4.5 4 12.5 0 17-4-4.5-4-12.5 0-17z"/>
@@ -129,16 +132,22 @@
     <h1><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</h1>
     <p class="tagline" id="tagline">Loading…</p>
 
-    <p class="why">
-      <strong>Why this exists.</strong> Christopher Nolan has done more than
-      anyone to keep 15/70&nbsp;mm film projection alive — and IMAX still gives
-      you no standing way to find the theatres that run it. Their
-      <a href="https://www.imax.com/theatre/finder" target="_blank" rel="noreferrer">own
-      theatre finder</a> searches by location and nothing else, and the theatre
-      pages behind it never mention film, screen size or aspect ratio. When a
-      big title opens, IMAX posts a one-off list of participating 70&nbsp;mm
-      venues, and then it goes stale. This is the standing list.
-    </p>
+    <details class="why">
+      <summary>
+        <svg class="icon chev" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chevron"></use></svg>
+        <strong>Why this exists</strong>
+      </summary>
+      <p>
+        Christopher Nolan has done more than
+        anyone to keep 15/70&nbsp;mm film projection alive — and IMAX still gives
+        you no standing way to find the theatres that run it. Their
+        <a href="https://www.imax.com/theatre/finder" target="_blank" rel="noreferrer">own
+        theatre finder</a> searches by location and nothing else, and the theatre
+        pages behind it never mention film, screen size or aspect ratio. When a
+        big title opens, IMAX posts a one-off list of participating 70&nbsp;mm
+        venues, and then it goes stale. This is the standing list.
+      </p>
+    </details>
   </div>
 </header>
 
@@ -173,43 +182,56 @@
              aria-label="Search location or theatre" spellcheck="false">
     </div>
 
-    <div class="toggles">
-      <label class="toggle accent" id="t-film70">
-        <input type="checkbox" id="film70"> <span>70&nbsp;mm film only</span>
-      </label>
-      <label class="toggle">
-        <input type="checkbox" id="dome"> <span>Dome only</span>
-      </label>
-      <label class="toggle">
-        <input type="checkbox" id="commercial"> <span>Shows commercial films</span>
-      </label>
-      <label class="toggle">
-        <input type="checkbox" id="include_removed"> <span>Include closed</span>
-      </label>
-    </div>
+    <!-- Collapsed by default. On a phone the toggles and selects together push
+         the first venue below the fold, so the page opens on chrome rather than
+         on results. The search box stays outside, and so does the active-filter
+         bar below - a filter that is applied must stay visible even when the
+         panel that set it is shut. -->
+    <details class="filterpanel" id="filterpanel">
+      <summary>
+        <svg class="icon chev" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chevron"></use></svg>
+        Filters
+      </summary>
 
-    <div class="selects">
-      <label id="f-country">Country
-        <select id="country"><option value="">Any</option></select>
-      </label>
-      <label>Digital projector
-        <select id="projector"><option value="">Any</option></select>
-      </label>
-      <label>Film projector
-        <select id="film"><option value="">Any</option></select>
-      </label>
-      <label>Screen shape
-        <select id="ar"><option value="">Any</option></select>
-      </label>
-      <label>Sort by
-        <select id="sort">
-          <option value="location">Location</option>
-          <option value="size">Biggest screen first</option>
-          <option value="name">Theatre name</option>
-          <option value="relevance">Best match</option>
-        </select>
-      </label>
-    </div>
+      <div class="toggles">
+        <label class="toggle accent" id="t-film70">
+          <input type="checkbox" id="film70"> <span>70&nbsp;mm film only</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="dome"> <span>Dome only</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="commercial"> <span>Shows commercial films</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="include_removed"> <span>Include closed</span>
+        </label>
+      </div>
+
+      <div class="selects">
+        <label id="f-country">Country
+          <select id="country"><option value="">Any</option></select>
+        </label>
+        <label>Digital projector
+          <select id="projector"><option value="">Any</option></select>
+        </label>
+        <label>Film projector
+          <select id="film"><option value="">Any</option></select>
+        </label>
+        <label>Screen shape
+          <select id="ar"><option value="">Any</option></select>
+        </label>
+        <label>Sort by
+          <select id="sort">
+            <option value="location">Location</option>
+            <option value="size">Biggest screen first</option>
+            <option value="name">Theatre name</option>
+            <option value="relevance">Best match</option>
+          </select>
+        </label>
+      </div>
+    </details>
+
     <div id="activefilters" class="activefilters" hidden>
       <span class="af-label">Filtering by</span>
       <span id="af-chips"></span>
