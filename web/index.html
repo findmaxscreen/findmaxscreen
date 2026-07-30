@@ -3,8 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FindMaxScreen</title>
+<!-- Deliberately not the same string as og:title below. This one is a search
+     result, where the useful thing is saying what the site answers; that one is
+     a message bubble, where the image already said it and a long title just
+     wraps. Kept under 60 characters so Google shows it without truncating. -->
+<title>Find Max Screen — IMAX theatres that run 15/70 mm film</title>
 <meta name="description" content="Find IMAX theatres by what they actually project — 15/70 mm film, GT Laser, screen aspect ratio and size. 476 venues in 56 countries, only 58 still running real film.">
+
+<!-- Filter state goes into the query string via replaceState, so this page is
+     reachable at a lot of URLs that are all the same document. The canonical
+     collapses them onto one instead of splitting ranking between them. -->
+<link rel="canonical" href="https://findmaxscreen.com/">
 <meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#171613" media="(prefers-color-scheme: dark)">
 
@@ -37,6 +46,47 @@
      for Add to Home Screen. It has to be a real PNG: the favicon below is an
      inline SVG data URI, which Apple ignores in both roles. -->
 <link rel="apple-touch-icon" href="https://findmaxscreen.com/apple-touch-icon.png">
+
+<!-- Site-level structured data only. The obvious richer thing is a MovieTheater
+     entity per venue, but that is 476 of them - tens of kilobytes on the
+     critical path, describing venues whose names are not in the HTML anyway.
+     Not worth it until the venues themselves are server-rendered.
+
+     The licence and source are the ones README records: the wiki text is
+     CC BY-SA 3.0, and this is a derived work under the same terms. Stated here
+     because a Dataset claiming no licence is worth less than one that does. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://findmaxscreen.com/#website",
+      "url": "https://findmaxscreen.com/",
+      "name": "Find Max Screen",
+      "description": "Find IMAX theatres by what they actually project: 15/70 mm film, GT Laser, screen aspect ratio and size.",
+      "inLanguage": "en"
+    },
+    {
+      "@type": "Dataset",
+      "@id": "https://findmaxscreen.com/#dataset",
+      "url": "https://findmaxscreen.com/",
+      "name": "IMAX venues by projection format",
+      "description": "Every known IMAX venue with the format it actually projects — 15/70 mm film, GT Laser or digital — plus screen aspect ratio, screen dimensions and dome status. 476 venues across 56 countries, rebuilt regularly from the IMAX Wiki.",
+      "keywords": ["IMAX", "15/70 mm film", "70 mm", "cinema", "projection", "movie theatres"],
+      "license": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "isBasedOn": "https://imax.fandom.com/wiki/List_of_IMAX_venues",
+      "isAccessibleForFree": true,
+      "creator": { "@type": "Organization", "name": "Find Max Screen" },
+      "distribution": {
+        "@type": "DataDownload",
+        "encodingFormat": "application/json",
+        "contentUrl": "https://findmaxscreen.com/data/venues.json"
+      }
+    }
+  ]
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a03b3b%27 stroke-width=%271.7%27 stroke-linecap=%27round%27%3E%3Ccircle cx=%2710.4%27 cy=%2710.4%27 r=%277.4%27/%3E%3Cpath d=%27M20.6 20.6 15.6 15.6%27/%3E%3Crect x=%277%27 y=%277.9%27 width=%276.8%27 height=%275%27 rx=%270.7%27/%3E%3Cpath d=%27M9.3 7.9v5M11.5 7.9v5%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 <!-- No preload for data/venues.json, deliberately. Preloading it at high

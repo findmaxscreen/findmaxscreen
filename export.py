@@ -33,7 +33,10 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_DB = HERE / "theatres.sqlite3"
 WEB_DIR = HERE / "web"
 DATA_FILE = WEB_DIR / "data" / "venues.json"
+SITEMAP_FILE = WEB_DIR / "sitemap.xml"
 DIST_DIR = HERE / "dist"
+
+SITE_URL = "https://findmaxscreen.com/"
 
 # Exactly what gets published.  Anything not named here stays local - which is
 # the entire security model for the admin page.
@@ -42,7 +45,10 @@ PUBLIC_FILES = ("index.html", "app.js", "query.js", "geo.js", "style.css",
                 # URL, so a deploy that drops them ships tags aimed at two 404s
                 # - and Apple caches that failure per URL. They are required,
                 # not optional, for exactly that reason.
-                "og.png", "apple-touch-icon.png")
+                "og.png", "apple-touch-icon.png",
+                # Crawler files. robots.txt names the sitemap by absolute URL,
+                # so the same argument applies: ship both or neither.
+                "robots.txt", "sitemap.xml")
 PUBLIC_DATA = ("data/venues.json",)
 
 # Shipped when present, but their absence is not an error.  GitHub Pages reads
@@ -255,6 +261,33 @@ def build_payload(conn: sqlite3.Connection) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# sitemap.xml
+# --------------------------------------------------------------------------- #
+
+def build_sitemap(revision: dict | None) -> str:
+    """One URL today; generated rather than hand-written so it stays honest.
+
+    lastmod comes from the wiki revision timestamp, not from the time this ran.
+    Those differ on most days: the daily job re-exports whether or not the wiki
+    moved, and a lastmod that advanced every morning would be a daily lie to
+    every crawler that reads it - the fastest way to have the field ignored.
+    Dated from the wiki instead, it only moves when the content actually did.
+
+    Written by hand rather than with ElementTree because it is nine lines of
+    XML with one variable in it, and the stdlib version needs more setup than
+    that to produce the same string.
+    """
+    when = (revision or {}).get("wiki_timestamp")
+    lastmod = f"\n    <lastmod>{when[:10]}</lastmod>" if when else ""
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"  <url>\n    <loc>{SITE_URL}</loc>{lastmod}\n  </url>\n"
+        "</urlset>\n"
+    )
+
+
+# --------------------------------------------------------------------------- #
 # dist/
 # --------------------------------------------------------------------------- #
 
@@ -357,6 +390,9 @@ def main(argv: list[str] | None = None) -> int:
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     DATA_FILE.write_text(body + "\n")
     print(f"wrote {DATA_FILE.relative_to(HERE)}")
+
+    SITEMAP_FILE.write_text(build_sitemap(payload.get("revision")))
+    print(f"wrote {SITEMAP_FILE.relative_to(HERE)}")
 
     if args.data_only:
         return 0

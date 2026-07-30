@@ -1,0 +1,11 @@
+# Everything here is public and meant to be found, including data/venues.json:
+# the structured data in index.html advertises it as the dataset's download URL,
+# so blocking it would contradict the page. It is 219 KB, which is the one
+# argument for keeping crawlers off it - but on a site with a single page there
+# is no crawl budget to protect, and a Dataset whose distribution cannot be
+# fetched is worth less than the bytes saved.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://findmaxscreen.com/sitemap.xml
