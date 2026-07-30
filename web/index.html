@@ -7,6 +7,36 @@
 <meta name="description" content="Find IMAX theatres by what they actually project — 15/70 mm film, GT Laser, screen aspect ratio and size. 476 venues in 56 countries, only 58 still running real film.">
 <meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#171613" media="(prefers-color-scheme: dark)">
+
+<!-- Link previews. iMessage (and Slack, and every crawler worth the name) reads
+     these out of the served HTML without running any JavaScript, so the numbers
+     here are baked in rather than filled from venues.json like the tagline is.
+     They go stale slowly - the film-70 count moves once or twice a year - and a
+     stale sentence beats no card at all.
+
+     The URLs are absolute on purpose: relative paths resolve against nothing on
+     the fetching server and silently yield no image. Width and height are
+     declared so the bubble can be laid out before the PNG finishes arriving;
+     without them a slow connection collapses the card to a one-line row.
+
+     Apple caches a preview per URL, on device and in their CDN, and will not
+     re-fetch just because the tags changed. Test with ?v=2 on the end. -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://findmaxscreen.com/">
+<meta property="og:site_name" content="Find Max Screen">
+<meta property="og:title" content="Find Max Screen">
+<meta property="og:description" content="476 IMAX theatres across 56 countries. Only 58 still run 15/70 mm film — those are the ones worth travelling for.">
+<meta property="og:image" content="https://findmaxscreen.com/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Find Max Screen: only 58 of 476 IMAX theatres still run 15/70 mm film.">
+<meta name="twitter:card" content="summary_large_image">
+
+<!-- iMessage falls back to this when it declines the og:image, and iOS uses it
+     for Add to Home Screen. It has to be a real PNG: the favicon below is an
+     inline SVG data URI, which Apple ignores in both roles. -->
+<link rel="apple-touch-icon" href="https://findmaxscreen.com/apple-touch-icon.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a03b3b%27 stroke-width=%271.7%27 stroke-linecap=%27round%27%3E%3Ccircle cx=%2710.4%27 cy=%2710.4%27 r=%277.4%27/%3E%3Cpath d=%27M20.6 20.6 15.6 15.6%27/%3E%3Crect x=%277%27 y=%277.9%27 width=%276.8%27 height=%275%27 rx=%270.7%27/%3E%3Cpath d=%27M9.3 7.9v5M11.5 7.9v5%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 <!-- No preload for data/venues.json, deliberately. Preloading it at high

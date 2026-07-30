@@ -37,7 +37,12 @@ DIST_DIR = HERE / "dist"
 
 # Exactly what gets published.  Anything not named here stays local - which is
 # the entire security model for the admin page.
-PUBLIC_FILES = ("index.html", "app.js", "query.js", "geo.js", "style.css")
+PUBLIC_FILES = ("index.html", "app.js", "query.js", "geo.js", "style.css",
+                # Link-preview assets. index.html points at both by absolute
+                # URL, so a deploy that drops them ships tags aimed at two 404s
+                # - and Apple caches that failure per URL. They are required,
+                # not optional, for exactly that reason.
+                "og.png", "apple-touch-icon.png")
 PUBLIC_DATA = ("data/venues.json",)
 
 # Shipped when present, but their absence is not an error.  GitHub Pages reads
