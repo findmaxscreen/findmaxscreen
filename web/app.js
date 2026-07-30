@@ -1,0 +1,866 @@
+/* FindMaxScreen — the public page.
+ *
+ * Static: one fetch of data/venues.json on load, and everything after that
+ * happens in the browser.  There is no API and no admin surface here; the
+ * refresh tooling lives in admin.html, which is never published.
+ */
+
+import { index, search, countryReport, paginate } from "./query.js";
+import { detectCountry, storeCountry, explain, regionName } from "./geo.js";
+
+const $ = (id) => document.getElementById(id);
+
+const CONTROLS = {
+  q: $("q"),
+  film70: $("film70"),
+  dome: $("dome"),
+  commercial: $("commercial"),
+  include_removed: $("include_removed"),
+  country: $("country"),
+  projector: $("projector"),
+  film: $("film"),
+  ar: $("ar"),
+  sort: $("sort"),
+};
+
+const results = $("results");
+const countEl = $("count");
+const banner = $("banner");
+
+const TABS = ["all", "country", "film70", "types"];
+
+// 476 rows in one scroll is a wall. Enough per page to be worth a scroll,
+// few enough that the end is always in sight.
+const PAGE_SIZE = 25;
+
+const state = {
+  data: null,
+  venues: [],
+  tab: "all",
+  detection: null,
+  country: "",
+  // Set only by the 70 mm call to action; there is no region control in the
+  // filter bar, so it surfaces as a removable chip instead.
+  region: "",
+  page: 1,
+};
+
+/* The wiki stores terse family codes.  Spelling them out - and saying what they
+ * actually are - is the difference between a filter only an enthusiast can read
+ * and one anybody can.  Presentation only; the data keeps the short codes. */
+const FILM_LABELS = {
+  "GT3D": ["IMAX GT 3D", "Dual 15/70 mm projectors running a 3D print. The flagship film system."],
+  "GT": ["IMAX GT", "The original 15/70 mm grand-theatre projector."],
+  "GT Dome": ["IMAX GT Dome", "15/70 mm projected onto a tilted dome."],
+  "SR": ["IMAX SR", "The smaller-venue 15/70 mm projector."],
+  "SR Dome": ["IMAX SR Dome", "15/70 mm onto a dome, in a smaller house."],
+  "Dome": ["IMAX Dome", "Film projected onto a dome screen."],
+  "15/70": ["Model unspecified", "The wiki lists a 15/70 mm projector but not which model."],
+};
+
+const DIGITAL_LABELS = {
+  "GT Laser": ["IMAX GT Laser", "The dual-4K laser system built for the biggest 1.43:1 screens."],
+  "CoLa": ["IMAX CoLa", "IMAX's single-projector 'commercial laser', the most widely installed system."],
+  "XT": ["IMAX Laser XT", "A laser retrofit for mid-size auditoriums."],
+  "Dome Laser": ["IMAX Dome Laser", "Laser projection onto a dome."],
+  "Digital": ["IMAX Digital", "The older 2K xenon dual-projector system."],
+  "Laser": ["IMAX with Laser", "Laser projection, model unstated."],
+};
+
+const label = (map, key) => (map[key] || [key, ""])[0];
+const blurb = (map, key) => (map[key] || [key, ""])[1];
+
+const ANY_FILM = "__any70__";
+const fmt = new Intl.NumberFormat();
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+// --------------------------------------------------------------- utilities
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function icon(name) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(SVG_NS, "use");
+  use.setAttribute("href", `#i-${name}`);
+  svg.append(use);
+  return svg;
+}
+
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
+const plural = (n, word) => `${fmt.format(n)} ${word}${n === 1 ? "" : "s"}`;
+
+// ----------------------------------------------------------------- queries
+
+/* The tab sets the scope; the controls refine within it.  Each tab also hides
+ * the control it subsumes, so the section heading and the filter bar can never
+ * claim different things. */
+function criteria() {
+  const c = {
+    q: CONTROLS.q.value.trim(),
+    dome: CONTROLS.dome.checked,
+    commercial: CONTROLS.commercial.checked,
+    includeRemoved: CONTROLS.include_removed.checked,
+    projector: CONTROLS.projector.value,
+    film: CONTROLS.film.value,
+    ar: CONTROLS.ar.value,
+    sort: CONTROLS.sort.value || "location",
+    film70: CONTROLS.film70.checked,
+    country: CONTROLS.country.value,
+    region: state.region,
+  };
+  if (state.tab === "country") c.country = state.country;
+  if (state.tab === "film70") c.film70 = true;
+  if (c.sort === "relevance" && !c.q) c.sort = "location";
+  return c;
+}
+
+/* Every filter currently narrowing the list, each with the means to drop it.
+ * A row of chips beats a lone "Clear" button: it says what is on as well as
+ * offering to turn it off. Filters a section already implies are excluded -
+ * you cannot switch off the thing that defines the section you are in. */
+function activeFilters() {
+  const chips = [];
+  const add = (label, clear) => chips.push({ label, clear });
+
+  if (CONTROLS.q.value.trim()) {
+    add(`“${CONTROLS.q.value.trim()}”`, () => { CONTROLS.q.value = ""; });
+  }
+  if (state.tab !== "film70" && CONTROLS.film70.checked) {
+    add("70 mm film", () => { CONTROLS.film70.checked = false; });
+  }
+  if (CONTROLS.dome.checked) add("Dome", () => { CONTROLS.dome.checked = false; });
+  if (CONTROLS.commercial.checked) {
+    add("Commercial films", () => { CONTROLS.commercial.checked = false; });
+  }
+  if (CONTROLS.include_removed.checked) {
+    add("Including closed", () => { CONTROLS.include_removed.checked = false; });
+  }
+  if (state.tab !== "country" && CONTROLS.country.value) {
+    add(CONTROLS.country.value, () => { CONTROLS.country.value = ""; });
+  }
+  if (state.region) add(state.region, () => { state.region = ""; });
+  if (CONTROLS.projector.value) {
+    add(label(DIGITAL_LABELS, CONTROLS.projector.value),
+        () => { CONTROLS.projector.value = ""; });
+  }
+  if (CONTROLS.film.value) {
+    add(label(FILM_LABELS, CONTROLS.film.value), () => { CONTROLS.film.value = ""; });
+  }
+  if (CONTROLS.ar.value) {
+    add(`${CONTROLS.ar.value}:1`, () => { CONTROLS.ar.value = ""; });
+  }
+  return chips;
+}
+
+function resetFilters() {
+  CONTROLS.q.value = "";
+  for (const key of ["film70", "dome", "commercial", "include_removed"]) {
+    CONTROLS[key].checked = false;
+  }
+  for (const key of ["country", "projector", "film", "ar"]) CONTROLS[key].value = "";
+  CONTROLS.sort.value = "location";
+  state.region = "";
+}
+
+function renderActiveFilters() {
+  const chips = activeFilters();
+  const bar = $("activefilters");
+  bar.hidden = chips.length === 0;
+
+  const box = $("af-chips");
+  box.replaceChildren();
+  for (const chip of chips) {
+    const button = el("button", "chip");
+    button.type = "button";
+    button.append(document.createTextNode(chip.label), icon("cross"));
+    button.title = `Remove this filter`;
+    button.addEventListener("click", () => { chip.clear(); update(); });
+    box.append(button);
+  }
+}
+
+function syncUrlBar() {
+  const params = new URLSearchParams();
+  if (state.tab !== "all") params.set("tab", state.tab);
+  const c = criteria();
+  if (c.q) params.set("q", c.q);
+  for (const [key, on] of [["dome", c.dome], ["commercial", c.commercial],
+                           ["include_removed", c.includeRemoved]]) {
+    if (on) params.set(key, "1");
+  }
+  if (state.tab !== "film70" && c.film70) params.set("film70", "1");
+  if (state.tab !== "country" && c.country) params.set("country", c.country);
+  for (const key of ["projector", "film", "ar"]) {
+    if (CONTROLS[key].value) params.set(key, CONTROLS[key].value);
+  }
+  if (CONTROLS.sort.value !== "location") params.set("sort", CONTROLS.sort.value);
+  if (state.region) params.set("region", state.region);
+  if (state.page > 1) params.set("page", String(state.page));
+  const query = params.toString();
+  history.replaceState(null, "", query ? `?${query}` : location.pathname);
+}
+
+// --------------------------------------------------------------- rendering
+
+function badge(text, cls, title, iconName) {
+  const node = el("span", cls ? `badge ${cls}` : "badge");
+  if (iconName) node.append(icon(iconName));
+  node.append(document.createTextNode(text));
+  if (title) node.title = title;
+  return node;
+}
+
+/* Outbound links for one venue.
+ *
+ * Coordinates come from OpenStreetMap, but the links go to Google Maps: a Maps
+ * URL is a plain hyperlink, needing no key and no API, and it is where people
+ * already keep their reviews and navigation. Nothing Google-derived is stored -
+ * only OSM coordinates are, which is what keeps the licensing clean.
+ *
+ * Showtimes are not hosted here. They are licensed, per-theatre and change
+ * daily, so a static site cannot hold them honestly; a search link always
+ * resolves to whatever is current and works in all 56 countries. */
+function venueLinks(v) {
+  const place = [v.name, v.city, v.state, v.country].filter(Boolean).join(", ");
+  const links = [];
+
+  // Rebuilt here rather than shipped: the same string for all 476 venues cost
+  // 55 KB of the payload, and it is pure function of fields already present.
+  const search = [v.name, v.city, v.country].filter(Boolean).join(", ");
+  // One Google Maps link, not two: the place card already carries a Directions
+  // button, so a separate one was a second route to the same screen. The
+  // coordinates still earn their keep here - an exact fix opens the theatre
+  // itself rather than a name search that may land on the wrong branch.
+  const precise = v.lat != null && v.lon != null && v.geo_precision === "venue";
+  links.push([
+    precise
+      ? `https://www.google.com/maps/search/?api=1&query=${v.lat},${v.lon}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(search)}`,
+    "Maps", "map",
+    precise
+      ? "Open in Google Maps — directions, reviews and photos are on the place card."
+      : `Open in Google Maps. This one isn't precisely mapped, so Google resolves ${v.city} from the name.`,
+  ]);
+
+  // The venue's own site, from OpenStreetMap's website tag. Usually the page
+  // that actually sells the tickets - and unlike a search result, ODbL lets us
+  // store and republish it.
+  if (v.website) {
+    links.push([v.website, "Cinema site", "globe",
+                "The theatre's own website — usually where the showtimes are."]);
+  }
+
+  links.push([
+    `https://www.google.com/search?q=${encodeURIComponent(place + " showtimes")}`,
+    "Showtimes", "ticket",
+    "Search for current showtimes at this theatre.",
+  ]);
+
+  return links;
+}
+
+function venueCard(v) {
+  const card = el("article", "venue");
+  if (v.has_70mm) card.classList.add("film70");
+  if (v.removed_at) card.classList.add("gone");
+
+  // The facts go in one box and the actions in another, so the card is a grid
+  // of exactly two cells. Letting the four fact elements be grid items in their
+  // own right is what caused the trouble before: the link stack landed in the
+  // title's row and stretched it.
+  const main = el("div", "venue-main");
+  card.append(main);
+  main.append(el("h3", null, v.name));
+
+  const where = el("p", "where");
+  where.append(icon("pin"), document.createTextNode(
+    [v.city, v.state, v.country].filter(Boolean).join(", ")));
+  main.append(where);
+
+  const badges = el("div", "badges");
+  if (v.has_70mm) {
+    badges.append(badge(label(FILM_LABELS, v.film_family), "film",
+      blurb(FILM_LABELS, v.film_family) + " Real 15/70 mm film, not digital.",
+      "film"));
+  }
+  if (v.is_1_43) {
+    badges.append(badge("1.43:1", "tall",
+      "The full-height IMAX frame — the tallest picture the format offers.", "tall"));
+  }
+  if (v.is_dome) {
+    badges.append(badge("Dome", "dome", "Projected onto a tilted dome.", "dome"));
+  }
+  if (v.projector_family) {
+    badges.append(badge(label(DIGITAL_LABELS, v.projector_family), "digital",
+      blurb(DIGITAL_LABELS, v.projector_family), "projector"));
+  }
+  if (v.screen_w_m && v.screen_h_m) {
+    badges.append(badge(`${v.screen_w_m} × ${v.screen_h_m} m`, "size",
+      v.screen_area_m2 ? `${fmt.format(v.screen_area_m2)} m² of screen` : "", "frame"));
+  } else if (v.screen_area_m2) {
+    badges.append(badge(`${fmt.format(v.screen_area_m2)} m²`, "size", "", "frame"));
+  }
+  if (v.commercial_films === 0) {
+    badges.append(badge("Museum programme", "muted",
+      "Documentaries and educational films rather than commercial releases.", "museum"));
+  }
+  if (v.is_temporary) {
+    badges.append(badge("Temporary", "muted", "A temporary installation.", "clock"));
+  }
+  if (v.removed_at) {
+    badges.append(badge("De-listed", "muted",
+      "No longer on the wiki's list. Kept here so the history survives.", "archive"));
+  }
+  if (badges.children.length) main.append(badges);
+
+  if (v.data_notes) main.append(el("p", "note", v.data_notes));
+
+  const links = el("div", "links");
+  for (const [href, text, iconName, title] of venueLinks(v)) {
+    const a = el("a");
+    a.href = href;
+    // mailto: must not open a tab that then sits there empty.
+    if (!href.startsWith("mailto:")) {
+      a.target = "_blank";
+      a.rel = "noreferrer";
+    }
+    a.title = title;
+    a.append(icon(iconName), document.createTextNode(text));
+    links.append(a);
+  }
+  card.append(links);
+
+  return card;
+}
+
+function summarize(result, c) {
+  if (!result.total) return "";
+  const noun = plural(result.total, "theatre");
+  if (c.film70) return `${noun} still threading 15/70 mm film.`;
+  if (result.shown < result.total) return `${noun} — showing the first ${fmt.format(result.shown)}.`;
+  const film70 = result.venues.filter((v) => v.has_70mm).length;
+  return film70 ? `${noun}, ${fmt.format(film70)} of them running real film.` : `${noun}.`;
+}
+
+// ------------------------------------------------------------ the sections
+
+/* Section (c): a plain answer to "can I see real film where I live?", before
+ * any list. */
+function film70Banner() {
+  const report = countryReport(state.venues, state.country);
+  const box = el("div", "verdict");
+
+  if (!state.country) {
+    box.append(el("p", "verdict-q", "Where are you?"));
+    box.append(el("p", null,
+      "Pick a country above and this will tell you whether you can see real "
+      + "15/70 mm film without getting on a plane."));
+    return box;
+  }
+
+  const yes = report.film70 > 0;
+  box.classList.add(yes ? "yes" : "no");
+  box.append(el("p", "verdict-q",
+    `Is there 15/70 mm film IMAX in ${state.country}?`));
+
+  const answer = el("p", "verdict-a");
+  answer.append(icon(yes ? "film" : "cross"));
+  answer.append(document.createTextNode(yes ? "Yes" : "No"));
+  box.append(answer);
+
+  if (yes) {
+    box.append(el("p", null,
+      `${plural(report.film70, "theatre")} in ${state.country} still `
+      + `${report.film70 === 1 ? "runs" : "run"} real film, out of `
+      + `${plural(report.venues, "IMAX venue")} in the country.`));
+  } else if (report.nearby.length) {
+    const nearest = report.nearby.slice(0, 4)
+      .map((c) => `${c.country} (${c.n})`).join(", ");
+    box.append(el("p", null,
+      `Nothing in ${state.country}${report.venues
+        ? ` — its ${plural(report.venues, "IMAX venue")} `
+          + `${report.venues === 1 ? "is" : "are"} all digital`
+        : ""}. The closest in ${report.region}: ${nearest}.`));
+  } else {
+    box.append(el("p", null,
+      `No 15/70 mm film IMAX in ${state.country}, and none elsewhere in `
+      + `${report.region || "the region"} either. The full list is below.`));
+  }
+
+  const cta = film70Cta(report);
+  if (cta) box.append(cta);
+  return box;
+}
+
+/* The list under the verdict is all 58 worldwide, which is rarely what someone
+ * who just read "yes, there is one in your country" wants next.  Offer the
+ * obvious narrowing as a button rather than making them work out which of the
+ * controls below does it. */
+function film70Cta(report) {
+  const narrowedToCountry = CONTROLS.country.value === state.country;
+  const narrowedToRegion = state.region === report.region;
+
+  let question, action, apply;
+
+  if (narrowedToCountry || narrowedToRegion) {
+    question = "Showing a narrowed list.";
+    action = "Show all 58 worldwide";
+    apply = () => { CONTROLS.country.value = ""; state.region = ""; };
+  } else if (report.film70 > 0) {
+    question = "Want to see just those?";
+    action = report.film70 === 1
+      ? `Show the one in ${state.country}`
+      : `Show all ${fmt.format(report.film70)} in ${state.country}`;
+    apply = () => { CONTROLS.country.value = state.country; state.region = ""; };
+  } else if (report.nearby.length) {
+    const total = report.nearby.reduce((sum, c) => sum + c.n, 0);
+    question = "Want to see the closest ones?";
+    action = total === 1
+      ? `Show the one in ${report.region}`
+      : `Show all ${fmt.format(total)} in ${report.region}`;
+    apply = () => { state.region = report.region; CONTROLS.country.value = ""; };
+  } else {
+    return null;
+  }
+
+  const wrap = el("div", "cta");
+  wrap.append(el("span", "cta-q", question));
+  const button = el("button", "ghost small");
+  button.type = "button";
+  button.append(icon("film"), document.createTextNode(action));
+  button.addEventListener("click", () => { apply(); update(); });
+  wrap.append(button);
+  return wrap;
+}
+
+/* Section (b): what is actually near you, with the guess shown as a guess. */
+function countryBanner() {
+  const box = el("div", "verdict");
+  if (!state.country) {
+    box.append(el("p", "verdict-q", "Where are you?"));
+    box.append(el("p", null, "Pick a country to see what is nearby."));
+    return box;
+  }
+
+  const report = countryReport(state.venues, state.country);
+  box.append(el("p", "verdict-q", state.country));
+
+  if (!report.venues) {
+    box.append(el("p", null,
+      `No IMAX venues listed in ${state.country}. The wiki only lists laser `
+      + "and 15/70 mm houses, so a plain digital screen may still exist there."));
+  } else {
+    const parts = [plural(report.venues, "IMAX venue")];
+    if (report.film70) parts.push(`${report.film70} running 15/70 mm film`);
+    if (report.ar1_43) parts.push(`${report.ar1_43} with a full-height 1.43:1 screen`);
+    if (report.dome) parts.push(`${report.dome} dome`);
+    box.append(el("p", null, parts.join(" · ")));
+  }
+
+  const how = el("p", "how");
+  how.append(document.createTextNode(explain(state.detection || {})));
+  box.append(how);
+  return box;
+}
+
+function renderBanner() {
+  banner.replaceChildren();
+  if (state.tab === "country") banner.append(countryBanner());
+  else if (state.tab === "film70") banner.append(film70Banner());
+}
+
+/* Built fresh each render into both containers.  A pager only at the foot of
+ * the list is a pager nobody finds - it sits 50 rows down - so the same
+ * controls appear beside the result count as well. */
+function pagerControls(slice, total) {
+  const nav = el("nav", "pager");
+  nav.setAttribute("aria-label", "Pagination");
+
+  const step = (label, page, enabled) => {
+    const button = el("button", "ghost small", label);
+    button.type = "button";
+    button.disabled = !enabled;
+    button.addEventListener("click", () => goToPage(page));
+    return button;
+  };
+
+  nav.append(step("Previous", slice.page - 1, slice.hasPrev));
+  nav.append(el("span", "pageinfo",
+    `${fmt.format(slice.from + 1)}–${fmt.format(slice.to)} of ${fmt.format(total)}`));
+  nav.append(step("Next", slice.page + 1, slice.hasNext));
+  return nav;
+}
+
+function renderPagers(slice, total) {
+  for (const id of ["pager-top", "pager-bottom"]) {
+    const box = $(id);
+    box.replaceChildren();
+    if (slice && slice.needed) box.append(pagerControls(slice, total));
+  }
+}
+
+function render() {
+  const c = criteria();
+  const result = search(state.venues, c);
+
+  results.replaceChildren();
+  if (!result.venues.length) {
+    const empty = el("div", "empty");
+    empty.append(el("p", "big", "Nothing matches all of that."));
+    empty.append(el("p", null,
+      "IMAX is a short list to begin with — try dropping a filter."));
+    results.append(empty);
+    countEl.textContent = "";
+    renderPagers(null, 0);
+    return;
+  }
+
+  // Clamped rather than trusted: a filter change can shrink the result set
+  // below the page you were on.
+  const slice = paginate(result.total, state.page, PAGE_SIZE);
+  state.page = slice.page;
+  const page = result.venues.slice(slice.from, slice.to);
+
+  // Country headings only make sense when the sort is by location, and are
+  // noise inside a single-country section.
+  const grouped = c.sort === "location" && state.tab !== "country";
+  if (grouped) {
+    let currentKey = null;
+    let section = null;
+    for (const v of page) {
+      const key = [v.country, v.state].filter(Boolean).join(" · ");
+      if (key !== currentKey) {
+        currentKey = key;
+        section = el("section", "group");
+        section.append(el("h2", null, key || "Unknown"));
+        results.append(section);
+      }
+      section.append(venueCard(v));
+    }
+  } else {
+    for (const v of page) results.append(venueCard(v));
+  }
+
+  countEl.textContent = summarize(result, c);
+  renderPagers(slice, result.total);
+}
+
+/* Any change to what is being filtered sends you back to page one; only the
+ * pager itself moves between pages. */
+function update({ keepPage = false } = {}) {
+  if (!keepPage) state.page = 1;
+  syncUrlBar();
+  if (state.tab === "types") {
+    banner.replaceChildren();
+    $("activefilters").hidden = true;
+    return;
+  }
+  renderActiveFilters();
+  renderBanner();
+  render();
+}
+
+function goToPage(page) {
+  state.page = page;
+  update({ keepPage: true });
+  document.getElementById("controls").scrollIntoView({ block: "nearest" });
+}
+
+// ------------------------------------------------------------------- tabs
+
+function setTab(tab, { push = true, keepPage = false } = {}) {
+  state.tab = TABS.includes(tab) ? tab : "all";
+  for (const button of document.querySelectorAll("[data-tab]")) {
+    const active = button.dataset.tab === state.tab;
+    button.classList.toggle("on", active);
+    button.setAttribute("aria-selected", String(active));
+  }
+  // Hide whichever control this section already decides for you.
+  $("f-country").hidden = state.tab === "country";
+  $("t-film70").hidden = state.tab === "film70";
+  const types = state.tab === "types";
+  $("types").hidden = !types;
+  $("controls").hidden = types;
+  $("resultbar").hidden = types;
+  $("results").hidden = types;
+  $("pager-bottom").hidden = types;
+  $("countrypicker").hidden = state.tab === "all" || types;
+  if (push) update({ keepPage });
+}
+
+// ------------------------------------------------------------------- setup
+
+function option(value, text, title) {
+  const node = el("option", null, text);
+  node.value = value;
+  if (title) node.title = title;
+  return node;
+}
+
+const byCount = (rows) => [...rows].sort((a, b) => b.n - a.n);
+
+function fillSimple(select, rows, labels) {
+  select.replaceChildren(option("", "Any"));
+  for (const row of rows) {
+    select.append(option(row.value,
+      `${labels ? label(labels, row.value) : row.value} (${row.n})`,
+      labels ? blurb(labels, row.value) : ""));
+  }
+}
+
+/* The film select is the one control people misread: its per-model buckets are
+ * a partition of the 70 mm venues, so a single model always shows a much
+ * smaller number than the "70 mm film only" toggle.  Leading with an explicit
+ * "any" entry - which simply hands the filter to that toggle - makes the
+ * relationship obvious instead of surprising. */
+function fillFilmSelect(select, rows, total70) {
+  select.replaceChildren(option("", "Any"));
+  select.append(option(ANY_FILM, `Any 15/70 mm film (${total70})`,
+    "Every theatre still running real film — the same set as the 70 mm toggle."));
+  const group = el("optgroup");
+  group.label = "Specific projector model";
+  for (const row of byCount(rows)) {
+    group.append(option(row.value, `${label(FILM_LABELS, row.value)} (${row.n})`,
+      blurb(FILM_LABELS, row.value)));
+  }
+  select.append(group);
+}
+
+function fillControls(facets) {
+  fillSimple(CONTROLS.country, facets.countries);
+  fillSimple(CONTROLS.projector, byCount(facets.projectors), DIGITAL_LABELS);
+  fillFilmSelect(CONTROLS.film, facets.films, facets.film70);
+
+  const ars = Object.fromEntries(facets.ars.map((a) => [a.value, a.n]));
+  CONTROLS.ar.replaceChildren(
+    option("", "Any"),
+    option("1.43", `1.43:1 — full height (${ars["1.43"]})`,
+      "The tallest IMAX frame. Includes dome venues; add the Dome filter to separate them."),
+    option("1.90", `1.90:1 (${ars["1.90"]})`,
+      "The widescreen IMAX frame used by most commercial auditoriums."),
+  );
+
+  // The "your country" picker lists everywhere, not only places with venues,
+  // so the honest answer "nothing listed there" stays reachable.
+  const picker = $("mycountry");
+  picker.replaceChildren(option("", "Select…"));
+  for (const row of facets.countries) {
+    picker.append(option(row.value, `${row.value} (${row.n})`));
+  }
+}
+
+function setCountry(country, { remember = true } = {}) {
+  state.country = country;
+  $("mycountry").value = country;
+  if (remember) storeCountry(country);
+  update();
+}
+
+function restoreFromUrl() {
+  const params = new URLSearchParams(location.search);
+  CONTROLS.q.value = params.get("q") || "";
+  for (const [key, id] of [["film70", "film70"], ["dome", "dome"],
+                           ["commercial", "commercial"],
+                           ["include_removed", "include_removed"]]) {
+    CONTROLS[id].checked = params.get(key) === "1";
+  }
+  for (const key of ["country", "projector", "film", "ar", "sort"]) {
+    if (params.get(key)) CONTROLS[key].value = params.get(key);
+  }
+  state.region = params.get("region") || "";
+  state.page = Math.max(1, parseInt(params.get("page"), 10) || 1);
+  return params.get("tab") || "all";
+}
+
+function wire() {
+  CONTROLS.q.addEventListener("input", debounce(update, 160));
+  for (const key of ["film70", "dome", "commercial", "include_removed",
+                     "country", "projector", "ar", "sort"]) {
+    CONTROLS[key].addEventListener("change", update);
+  }
+
+  // Picking "Any 15/70 mm film" hands the filter to the toggle that owns it,
+  // so the select and the checkbox can never end up disagreeing.
+  CONTROLS.film.addEventListener("change", () => {
+    if (CONTROLS.film.value === ANY_FILM) {
+      CONTROLS.film.value = "";
+      if (state.tab === "film70") { update(); return; }
+      CONTROLS.film70.checked = true;
+    }
+    update();
+  });
+
+  for (const button of document.querySelectorAll("[data-tab]")) {
+    button.addEventListener("click", () => setTab(button.dataset.tab));
+  }
+
+  $("mycountry").addEventListener("change", (e) => setCountry(e.target.value));
+
+  $("reset").addEventListener("click", () => { resetFilters(); update(); });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement !== CONTROLS.q) {
+      e.preventDefault();
+      CONTROLS.q.focus();
+      CONTROLS.q.select();
+    }
+  });
+}
+
+/* Three audiences, three destinations, named in the order most people need
+ * them. Venue facts belong upstream on the wiki, where a fix reaches everyone
+ * rather than only this site. A broken page or link is ours, and reaches us by
+ * email so that no account is needed. Developers who would rather file an issue
+ * get that route too, once the repository exists.
+ *
+ * The report used to sit on every venue card, which meant 476 copies of a link
+ * almost nobody clicks and which the reporter did not need pointed out. One
+ * link here does the job - but since the reader is no longer standing on a
+ * particular theatre when they click it, the email has to ask which one. */
+function reportEmailUrl(email) {
+  const body = [
+    "Which theatre is this about?",
+    "(name and city - or say 'the site itself' for a page problem)",
+    "",
+    "",
+    "What is wrong?",
+    "(a broken link, wrong projector, wrong screen size, wrong location...)",
+    "",
+    "",
+    "-- ",
+    `Reported from ${location.href}`,
+  ].join("\n");
+
+  return `mailto:${email}`
+    + `?subject=${encodeURIComponent("FindMaxScreen: a problem")}`
+    + `&body=${encodeURIComponent(body)}`;
+}
+
+function renderReportNote(links) {
+  const note = $("reportnote");
+  if (!note || !(links.wiki || links.email || links.repo)) return;
+  note.replaceChildren();
+  note.hidden = false;
+
+  const add = (text) => note.append(document.createTextNode(text));
+  const link = (href, text) => {
+    const a = el("a", null, text);
+    a.href = href;
+    if (!href.startsWith("mailto:")) {
+      a.target = "_blank";
+      a.rel = "noreferrer";
+    }
+    note.append(a);
+  };
+
+  add("Found a mistake? Venue details — projector, screen, location — come from the ");
+  link(links.wiki, "IMAX Wiki");
+  add(", and correcting them there fixes them for everyone and flows back here "
+      + "on the next sync.");
+
+  if (links.email) {
+    add(" For a broken link, wrong data or anything else amiss, ");
+    link(reportEmailUrl(links.email), "report it by email");
+    add(" — tell us which theatre and what is wrong.");
+  }
+  if (links.repo) {
+    add(" Developers can ");
+    link(`${links.repo}/issues/new?`
+         + new URLSearchParams({ title: "Site: ", labels: "site" }),
+         "open an issue");
+    add(" instead.");
+  }
+}
+
+// ------------------------------------------------------------------ themes
+
+const THEMES = ["auto", "light", "dark"];
+const THEME_ICON = { auto: "auto", light: "sun", dark: "moon" };
+
+function applyTheme(theme) {
+  if (theme === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  const button = $("theme");
+  button.querySelector("use").setAttribute("href", `#i-${THEME_ICON[theme]}`);
+  $("thememode").textContent = theme[0].toUpperCase() + theme.slice(1);
+  button.title = `Theme: ${theme}. Click for ${
+    THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]}.`;
+}
+
+function wireTheme() {
+  let theme = localStorage.getItem("theme");
+  if (!THEMES.includes(theme)) theme = "auto";
+  applyTheme(theme);
+  $("theme").addEventListener("click", () => {
+    theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+    localStorage.setItem("theme", theme);
+    applyTheme(theme);
+  });
+}
+
+// ------------------------------------------------------------------- start
+
+async function start() {
+  wireTheme();
+
+  let data;
+  try {
+    const resp = await fetch("data/venues.json", { cache: "no-cache" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    data = await resp.json();
+  } catch (err) {
+    $("tagline").textContent =
+      `Could not load the venue data (${err.message}). Run ./export.py.`;
+    return;
+  }
+
+  state.data = data;
+  state.venues = index(data.venues);
+
+  const s = data.stats;
+  $("tagline").textContent =
+    `${fmt.format(s.venues)} IMAX theatres across ${fmt.format(s.countries)} countries. `
+    + `Only ${fmt.format(s.film70)} still run 15/70 mm film — those are the ones worth travelling for.`;
+
+  renderReportNote(data.links || {});
+
+  const rev = data.revision;
+  $("asof").textContent = rev
+    ? `Wiki revision ${rev.revid}, edited ${new Date(rev.wiki_timestamp).toLocaleDateString()}`
+      + ` · data built ${new Date(data.generated_at).toLocaleDateString()}`
+    : "No revision recorded";
+
+  fillControls(data.facets);
+
+  state.detection = detectCountry(data.geo || {});
+  state.country = state.detection.country || "";
+  $("mycountry").value = state.country;
+  // If the guess landed somewhere with no venues, the picker has no such
+  // option; add it so the selection is visible rather than silently blank.
+  if (state.country && !$("mycountry").value) {
+    $("mycountry").append(option(state.country, `${state.country} (0)`));
+    $("mycountry").value = state.country;
+  }
+
+  const tab = restoreFromUrl();
+  wire();
+  // keepPage so a shared ?page=3 link lands where it says it will.
+  setTab(tab, { keepPage: true });
+}
+
+start();

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin — FindMaxScreen</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M20.5 12a8.5 8.5 0 1 1-2.9-6.4"/>
+      <path d="M20.5 3.5v5h-5"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5 9.5 18 20 6.5"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24">
+      <path d="M12 3.5 21.5 20H2.5z"/><path d="M12 10v4.5M12 17.2h.01"/>
+    </symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M20 12H4.5M11 5.5 4.5 12l6.5 6.5"/></symbol>
+  </defs>
+</svg>
+
+<header class="masthead">
+  <div class="wrap">
+    <h1>Admin</h1>
+    <p class="tagline">
+      Local tools. This page is served only by <code>./serve.py</code> on
+      127.0.0.1 and is <strong>never</strong> copied into the published bundle —
+      <code>export.py</code> builds <code>dist/</code> from an allow-list, and
+      refuses if anything named "admin" ends up in it.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="panel">
+    <h2>Current data</h2>
+    <dl id="meta" class="facts"><dd>Loading…</dd></dl>
+  </section>
+
+  <section class="panel">
+    <h2>Refresh from the wiki</h2>
+    <p class="lede">
+      Fetches the current revision of the source page, parses it, applies any
+      changes to <code>imax.sqlite3</code> and validates the result. A revision
+      that has not moved is a no-op; venues that disappear upstream are
+      soft-deleted, never dropped.
+    </p>
+    <p>
+      <button type="button" id="refresh" class="ghost">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-refresh"></use></svg>Refresh from wiki
+      </button>
+      <span id="syncstatus" aria-live="polite"></span>
+    </p>
+    <pre id="synclog" class="log" hidden></pre>
+    <p class="lede">
+      After a refresh that changed anything, rebuild the published files:
+      <code>./export.py</code>, then deploy <code>dist/</code>.
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>Validation</h2>
+    <p class="lede">
+      Runs the same checks the sync runs. Errors mean the database is wrong;
+      warnings mean the wiki is inconsistent.
+    </p>
+    <div id="validation">—</div>
+  </section>
+
+  <section class="panel">
+    <h2>Recent changes</h2>
+    <p class="lede">Every field-level edit, newest first.</p>
+    <div id="changes">—</div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+  <a class="ghost" href="index.html">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-back"></use></svg>Back to the finder
+  </a>
+  </div>
+</footer>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>

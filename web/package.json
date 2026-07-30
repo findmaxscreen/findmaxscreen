@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Not an npm project and not published: this file exists only so `node --test` parses the .js files here as ES modules, the way the browser does via <script type=module>. There are no dependencies. export.py copies an explicit allow-list, so this file never reaches dist/."
+}

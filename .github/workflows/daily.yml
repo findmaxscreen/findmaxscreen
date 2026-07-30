@@ -1,0 +1,141 @@
+# Daily: pull the wiki, rebuild the site, publish it.
+#
+# Most days this does almost nothing. sync.py asks the MediaWiki API for the
+# current revision id, sees it has not moved, and stops — so the common case is
+# one HTTP request and a green tick.
+#
+# The database is committed back on every run that changes it. That is not
+# incidental: theatres.sqlite3 carries the whole audit trail (soft-deletes,
+# venue_changes, first-seen dates) and all 476 geocodes. A job that started from
+# an empty database would lose that history *and* re-geocode every venue daily,
+# which would get us blocked by Nominatim inside a week.
+#
+# Nothing here needs a secret. GitHub Pages is published with the built-in
+# GITHUB_TOKEN.
+
+name: daily
+
+on:
+  schedule:
+    # 06:00 UTC. Cron in Actions is best-effort and can lag under load; nothing
+    # here is time-sensitive.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+  push:
+    # Code changes should be gated by the same checks that gate the data.
+    branches: [main]
+
+permissions:
+  contents: write   # commit the refreshed database back
+  pages: write      # publish
+  id-token: write   # required by deploy-pages
+
+# Never let two runs deploy at once, but never cancel one mid-publish either.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          chrome-version: stable
+
+      # ---- gate 1: the code is correct -------------------------------------
+      # Runs before touching the network, so a broken parser fails in seconds
+      # rather than after a sync.
+      - name: Unit tests
+        run: |
+          python3 -m unittest discover -p 'test_*.py' -v
+          node --test test_query.mjs
+
+      # ---- pull upstream ---------------------------------------------------
+      # sync.py exits non-zero on its own guards: 2 if the revision parses to
+      # under 90% of the previous venue count (vandalism, or a table rewrite),
+      # 1 if validation finds an ERROR. Either way the job stops here and the
+      # live site is left alone.
+      - name: Sync from the wiki
+        run: python3 sync.py
+
+      # New venues arrive without coordinates. This only touches rows with none,
+      # so it is normally a no-op and at most a handful of Nominatim calls at
+      # their one-per-second limit. A failure here is not fatal: the venue keeps
+      # its search-by-name links and gets coordinates on a later run.
+      - name: Geocode new venues
+        continue-on-error: true
+        run: python3 geocode.py
+
+      # ---- build -----------------------------------------------------------
+      # export.py refuses to build from a database with ERROR findings, and
+      # build_dist() re-scans its own output for anything admin-shaped.
+      - name: Build the bundle
+        run: python3 export.py
+
+      # ---- gate 2: the data is sane ----------------------------------------
+      - name: Bundle assertions
+        run: python3 test_bundle.py -v
+
+      # ---- gate 3: the page actually works ---------------------------------
+      # The only check that runs the site rather than reasoning about it.
+      # Catches an uncaught exception that fires after render — which unit tests
+      # structurally cannot see, and which has shipped here before.
+      - name: Smoke test the built site
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: python3 smoke.py
+
+      # ---- persist ---------------------------------------------------------
+      - name: Commit refreshed data
+        run: |
+          if git diff --quiet -- theatres.sqlite3 snapshots/; then
+            echo "no data change — nothing to commit"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add theatres.sqlite3 snapshots/
+          REV=$(python3 -c "import sqlite3;print(sqlite3.connect('theatres.sqlite3').execute('select max(revid) from revisions').fetchone()[0])")
+          git commit -m "data: wiki revision ${REV}"
+          git push
+
+      # ---- publish ---------------------------------------------------------
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      # ---- gate 4: it is actually live -------------------------------------
+      - name: Verify the deployment
+        run: |
+          URL="${{ steps.deploy.outputs.page_url }}"
+          echo "checking $URL"
+          curl -sSfL "$URL" | grep -q "FindMaxScreen" \
+            && echo "  ok   homepage serves"
+          EXPECTED=$(python3 -c "import json;print(json.load(open('dist/data/venues.json'))['stats']['venues'])")
+          LIVE=$(curl -sSfL "${URL}data/venues.json" | python3 -c "import json,sys;print(json.load(sys.stdin)['stats']['venues'])")
+          test "$EXPECTED" = "$LIVE" \
+            && echo "  ok   live data has $LIVE venues"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "${URL}admin.html")
+          test "$CODE" = "404" \
+            && echo "  ok   admin.html is not published (HTTP $CODE)"

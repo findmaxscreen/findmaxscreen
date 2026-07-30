@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FindMaxScreen</title>
+<meta name="description" content="Find IMAX theatres by what they actually project — 15/70 mm film, GT Laser, screen aspect ratio and size. 476 venues in 56 countries, only 58 still running real film.">
+<meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171613" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a03b3b%27 stroke-width=%271.7%27 stroke-linecap=%27round%27%3E%3Ccircle cx=%2710.4%27 cy=%2710.4%27 r=%277.4%27/%3E%3Cpath d=%27M20.6 20.6 15.6 15.6%27/%3E%3Crect x=%277%27 y=%277.9%27 width=%276.8%27 height=%275%27 rx=%270.7%27/%3E%3Cpath d=%27M9.3 7.9v5M11.5 7.9v5%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<!-- No preload for data/venues.json, deliberately. Preloading it at high
+     priority measurably HURT mobile: on a throttled connection the 200 KB
+     fetch competes with style.css, and LCP (the masthead paragraph, which
+     needs only HTML+CSS) went 1.2s -> 2.4s. The data is not what the first
+     paint is waiting for. Only the small modules are preloaded. -->
+<link rel="modulepreload" href="query.js">
+<link rel="modulepreload" href="geo.js">
+</head>
+<body>
+
+<!-- Monochrome icon set, drawn inline so the page stays self-contained: no
+     icon font, no CDN, no network. Everything inherits currentColor. -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-film" viewBox="0 0 24 24">
+      <rect x="2.5" y="5" width="19" height="14" rx="1.5"/>
+      <path d="M7 5v14M17 5v14"/>
+      <path d="M4.7 8.2h.01M4.7 12h.01M4.7 15.8h.01M19.3 8.2h.01M19.3 12h.01M19.3 15.8h.01"/>
+    </symbol>
+    <symbol id="i-find" viewBox="0 0 24 24">
+      <circle cx="10.4" cy="10.4" r="7.4"/>
+      <path d="M20.6 20.6 15.6 15.6"/>
+      <rect x="7" y="7.9" width="6.8" height="5" rx="0.7"/>
+      <path d="M9.3 7.9v5M11.5 7.9v5"/>
+    </symbol>
+    <symbol id="i-dome" viewBox="0 0 24 24">
+      <path d="M3 18a9 9 0 0 1 18 0"/>
+      <path d="M1.5 18h21"/>
+      <path d="M12 18V9M7.5 18c0-4 2-7 4.5-7s4.5 3 4.5 7"/>
+    </symbol>
+    <!-- Both of these started out more literal - a framed rectangle, a
+         projector body with a beam - and turned to mush at 14px.  Fewer,
+         bigger strokes survive the size. -->
+    <symbol id="i-tall" viewBox="0 0 24 24">
+      <path d="M12 3.5v17M6.5 9 12 3.5 17.5 9M6.5 15 12 20.5 17.5 15"/>
+    </symbol>
+    <symbol id="i-projector" viewBox="0 0 24 24">
+      <circle cx="8" cy="12" r="4.2"/>
+      <path d="M14.5 12h7M15.2 8.2l5.8-2.9M15.2 15.8l5.8 2.9"/>
+    </symbol>
+    <symbol id="i-frame" viewBox="0 0 24 24">
+      <path d="M4 9V5.2A1.2 1.2 0 0 1 5.2 4H9"/>
+      <path d="M20 9V5.2A1.2 1.2 0 0 0 18.8 4H15"/>
+      <path d="M4 15v3.8A1.2 1.2 0 0 0 5.2 20H9"/>
+      <path d="M20 15v3.8A1.2 1.2 0 0 1 18.8 20H15"/>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24">
+      <path d="M12 21.5s7-6.9 7-11.5a7 7 0 1 0-14 0c0 4.6 7 11.5 7 11.5z"/>
+      <circle cx="12" cy="10" r="2.6"/>
+    </symbol>
+    <!-- A folded map for the Maps link, so the pin can belong to the location
+         line alone rather than appearing twice on every row. -->
+    <symbol id="i-map" viewBox="0 0 24 24">
+      <path d="M9 4.2 3.2 6.6v13.2L9 17.4l6 2.4 5.8-2.4V4.2L15 6.6z"/>
+      <path d="M9 4.2v13.2M15 6.6v13.2"/>
+    </symbol>
+    <symbol id="i-route" viewBox="0 0 24 24">
+      <circle cx="5.5" cy="18.5" r="2.6"/>
+      <circle cx="18.5" cy="5.5" r="2.6"/>
+      <path d="M8.1 18.5h6.4a4 4 0 0 0 0-8H9.5a4 4 0 0 1 0-8h6.4"/>
+    </symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24">
+      <path d="M3 8.5V6.2A1.2 1.2 0 0 1 4.2 5h15.6A1.2 1.2 0 0 1 21 6.2v2.3a3.5 3.5 0 0 0 0 7v2.3a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 17.8v-2.3a3.5 3.5 0 0 0 0-7z"/>
+      <path d="M14 8.5v7"/>
+    </symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24">
+      <path d="M5.5 21V3.5"/>
+      <path d="M5.5 4.5c4-2 8 2 12 0v8c-4 2-8-2-12 0z"/>
+    </symbol>
+    <symbol id="i-museum" viewBox="0 0 24 24">
+      <path d="M3 9.5h18M12 3l9 6.5H3z"/>
+      <path d="M6 10v8M10 10v8M14 10v8M18 10v8M2.5 20.5h19"/>
+    </symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.5"/>
+      <path d="M12 7v5.3l3.3 2"/>
+    </symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="4.6" rx="1.2"/>
+      <path d="M5 8.6v10.2A1.2 1.2 0 0 0 6.2 20h11.6a1.2 1.2 0 0 0 1.2-1.2V8.6"/>
+      <path d="M10 12.5h4"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="10.8" cy="10.8" r="6.8"/>
+      <path d="M20.5 20.5 15.7 15.7"/>
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M20.5 12a8.5 8.5 0 1 1-2.9-6.4"/>
+      <path d="M20.5 3.5v5h-5"/>
+    </symbol>
+    <symbol id="i-cross" viewBox="0 0 24 24">
+      <path d="M6 6l12 12M18 6L6 18"/>
+    </symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.5"/>
+      <path d="M3.5 12h17M12 3.5c4 4.5 4 12.5 0 17-4-4.5-4-12.5 0-17z"/>
+    </symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.5 1.5M18.3 18.3l1.5 1.5M2.5 12h2M19.5 12h2M4.2 19.8l1.5-1.5M18.3 5.7l1.5-1.5"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <path d="M20.5 13.3A8.7 8.7 0 1 1 10.7 3.5a6.9 6.9 0 0 0 9.8 9.8z"/>
+    </symbol>
+    <symbol id="i-auto" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.5"/>
+      <path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor" stroke="none"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="masthead">
+  <div class="wrap">
+    <button type="button" id="theme" class="themetoggle" title="Switch theme">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
+      <span id="thememode">Auto</span>
+    </button>
+    <h1><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</h1>
+    <p class="tagline" id="tagline">Loading…</p>
+
+    <p class="why">
+      <strong>Why this exists.</strong> Christopher Nolan has done more than
+      anyone to keep 15/70&nbsp;mm film projection alive — and IMAX still gives
+      you no standing way to find the theatres that run it. Their
+      <a href="https://www.imax.com/theatre/finder" target="_blank" rel="noreferrer">own
+      theatre finder</a> searches by location and nothing else, and the theatre
+      pages behind it never mention film, screen size or aspect ratio. When a
+      big title opens, IMAX posts a one-off list of participating 70&nbsp;mm
+      venues, and then it goes stale. This is the standing list.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" data-tab="all" role="tab" aria-selected="true">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-globe"></use></svg>All venues
+    </button>
+    <button type="button" data-tab="country" role="tab" aria-selected="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg>Your country
+    </button>
+    <button type="button" data-tab="film70" role="tab" aria-selected="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>70&nbsp;mm film
+    </button>
+    <button type="button" data-tab="types" role="tab" aria-selected="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-projector"></use></svg>IMAX types
+    </button>
+  </nav>
+
+  <div id="countrypicker" class="countrypicker" hidden>
+    <label for="mycountry">Your country</label>
+    <select id="mycountry"><option value="">Select…</option></select>
+  </div>
+
+  <div id="banner"></div>
+
+  <form id="controls" autocomplete="off" onsubmit="return false">
+    <div class="searchrow">
+      <svg class="icon searchicon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"></use></svg>
+      <input type="search" id="q" placeholder="Search a city, country, or theatre…  (press /)"
+             aria-label="Search location or theatre" spellcheck="false">
+    </div>
+
+    <div class="toggles">
+      <label class="toggle accent" id="t-film70">
+        <input type="checkbox" id="film70"> <span>70&nbsp;mm film only</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="dome"> <span>Dome only</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="commercial"> <span>Shows commercial films</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="include_removed"> <span>Include closed</span>
+      </label>
+    </div>
+
+    <div class="selects">
+      <label id="f-country">Country
+        <select id="country"><option value="">Any</option></select>
+      </label>
+      <label>Digital projector
+        <select id="projector"><option value="">Any</option></select>
+      </label>
+      <label>Film projector
+        <select id="film"><option value="">Any</option></select>
+      </label>
+      <label>Screen shape
+        <select id="ar"><option value="">Any</option></select>
+      </label>
+      <label>Sort by
+        <select id="sort">
+          <option value="location">Location</option>
+          <option value="size">Biggest screen first</option>
+          <option value="name">Theatre name</option>
+          <option value="relevance">Best match</option>
+        </select>
+      </label>
+    </div>
+    <div id="activefilters" class="activefilters" hidden>
+      <span class="af-label">Filtering by</span>
+      <span id="af-chips"></span>
+      <button type="button" id="reset" class="ghost small">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cross"></use></svg>Reset filters
+      </button>
+    </div>
+  </form>
+
+  <!-- The legend doubles as a key to the badges: every chip below is rendered
+       with the same markup the result rows use, so they are learnable in one
+       place. -->
+  <section id="types" class="legend" hidden>
+    <h2 class="typeshead">Which IMAX is actually worth the trip?</h2>
+
+    <p class="standfirst">Not every screen with an IMAX sign on it is the same
+      format. Ranked by picture quality, best first — this is the ordering IMAX
+      enthusiasts broadly agree on, and it turns on three things: whether the
+      picture is film or digital, whether the screen shows the full
+      <em>tall</em> 1.43:1 frame or a cropped 1.90:1 one, and how big the screen
+      physically is.</p>
+
+    <ol class="ranks">
+      <li>
+        <span class="badge film"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>15/70&nbsp;mm film</span>
+        <p><strong>The real thing.</strong> A 70&nbsp;mm frame run
+          <em>sideways</em> through the projector, about ten times the area of a
+          standard 35&nbsp;mm frame and commonly reckoned to out-resolve any
+          digital cinema format. Shown at 1.43:1, so the picture fills your view
+          from floor to ceiling. <strong>GT 3D</strong> and <strong>GT</strong>
+          are the grand-theatre projectors; <strong>SR</strong> is the
+          smaller-house version. Only 58 theatres on this list still run it,
+          which is the entire reason for the 70&nbsp;mm filter.</p>
+      </li>
+      <li>
+        <span class="badge digital"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-projector"></use></svg>IMAX GT Laser</span>
+        <p><strong>The best digital IMAX.</strong> Two 4K laser projectors
+          superimposed, with the widest colour range and deepest blacks IMAX has
+          shipped — and, crucially, the only digital system that fills the tall
+          1.43:1 frame. If you can't get to a film house, get to one of these.</p>
+      </li>
+      <li>
+        <span class="badge digital"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-projector"></use></svg>IMAX CoLa</span>
+        <p><strong>Very good, but wider and shorter.</strong> IMAX's single-projector
+          "commercial laser", now the most widely installed system. Excellent
+          contrast and brightness, but almost always in a 1.90:1 auditorium — you
+          get a cropped frame compared with the two above.</p>
+      </li>
+      <li>
+        <span class="badge digital"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-projector"></use></svg>IMAX Laser XT</span>
+        <p>A laser system built for mid-size auditoriums. Good picture, smaller
+          room, 1.90:1.</p>
+      </li>
+      <li>
+        <span class="badge digital"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-projector"></use></svg>IMAX Digital</span>
+        <p><strong>The weakest of the bunch.</strong> The older twin 2K xenon
+          system at 1.90:1 — dimmer and softer than anything above it, and the
+          reason the phrase "not real IMAX" exists. Being retired steadily.</p>
+      </li>
+    </ol>
+
+    <p class="aside">
+      <span class="badge dome"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dome"></use></svg>Dome</span>
+      Domes (also sold as OMNIMAX) sit outside the ranking — a tilted
+      hemispherical screen that wraps past the edge of your vision. Different
+      rather than better, and mostly science museums showing documentaries
+      rather than features.
+    </p>
+
+    <p class="aside">
+      <span class="badge tall"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tall"></use></svg>1.43:1</span>
+      Worth repeating on its own: the aspect ratio can matter as much as the
+      projector. A 1.43:1 screen shows the full-height IMAX frame; a 1.90:1
+      screen shows a wider, shorter crop of it. Filter by
+      <strong>Screen shape → 1.43:1</strong> to see only the tall ones.
+    </p>
+  </section>
+
+  <div id="resultbar" class="resultbar">
+    <p class="count" id="count" aria-live="polite"></p>
+    <div id="pager-top" class="pagerbox"></div>
+  </div>
+
+  <div id="results"></div>
+
+  <div id="pager-bottom" class="pagerbox"></div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+  <span id="asof">—</span>
+  <p class="src">Data from <a href="https://imax.fandom.com/wiki/List_of_IMAX_venues"
+     target="_blank" rel="noreferrer">List of IMAX venues</a> on the IMAX Wiki — laser
+     and/or 15/70&nbsp;mm venues only; theatres with just 2K xenon projectors are not
+     listed upstream. Every model filter is a slice of the 70&nbsp;mm list, so a single
+     model always counts fewer than the toggle. Hover any badge to see what it means.</p>
+
+  <p class="src report" id="reportnote" hidden></p>
+
+  <p class="src licence">
+    That wiki text is written by its contributors and reused here under
+    <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank"
+       rel="license noreferrer">CC&nbsp;BY-SA&nbsp;3.0</a>, per
+    <a href="https://www.fandom.com/licensing" target="_blank" rel="noreferrer">Fandom's
+    licensing terms</a>. This page is a derived work and is offered under the same
+    licence. It is an independent project, not affiliated with or endorsed by IMAX
+    Corporation or Fandom.
+  </p>
+  </div>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

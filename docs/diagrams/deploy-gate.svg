@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 700" width="1180" height="700" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="context-stroke"/>
+    </marker>
+  </defs>
+
+  <rect width="1180" height="700" fill="#ffffff"/>
+
+  <text x="40" y="46" font-size="26" font-weight="700" fill="#1e1e1e">The deploy gate</text>
+  <text x="40" y="72" font-size="15" fill="#6b7280">Runs daily at 06:00 UTC. Nothing reaches the site unless every stage passes.</text>
+
+  <!-- stages -->
+  <rect x="60" y="110" width="400" height="58" rx="8" fill="#d0bfff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="80" y="146" font-size="16" fill="#1e1e1e"><tspan font-weight="700">1</tspan>  unit tests — 158 Python + 33 JS</text>
+  <text x="490" y="146" font-size="14" fill="#6b7280">the code is correct</text>
+  <path d="M260 170 V186" stroke="#8b5cf6" stroke-width="2" fill="none" marker-end="url(#ah2)"/>
+
+  <rect x="60" y="190" width="400" height="58" rx="8" fill="#fff3bf" stroke="#f59e0b" stroke-width="2"/>
+  <text x="80" y="226" font-size="16" fill="#1e1e1e"><tspan font-weight="700">2</tspan>  sync — shrink guard, &gt;10% loss</text>
+  <text x="490" y="226" font-size="14" fill="#6b7280">the wiki was not vandalised</text>
+  <path d="M260 250 V266" stroke="#f59e0b" stroke-width="2" fill="none" marker-end="url(#ah2)"/>
+
+  <rect x="60" y="270" width="400" height="58" rx="8" fill="#fff3bf" stroke="#f59e0b" stroke-width="2"/>
+  <text x="80" y="306" font-size="16" fill="#1e1e1e"><tspan font-weight="700">3</tspan>  validate() — ERROR fails the run</text>
+  <text x="490" y="306" font-size="14" fill="#6b7280">the database is coherent</text>
+  <path d="M260 330 V346" stroke="#f59e0b" stroke-width="2" fill="none" marker-end="url(#ah2)"/>
+
+  <rect x="60" y="350" width="400" height="58" rx="8" fill="#c3fae8" stroke="#0e7490" stroke-width="2"/>
+  <text x="80" y="386" font-size="16" fill="#1e1e1e"><tspan font-weight="700">4</tspan>  export — allow-list, no admin</text>
+  <text x="490" y="386" font-size="14" fill="#6b7280">the bundle holds only public files</text>
+  <path d="M260 410 V426" stroke="#0e7490" stroke-width="2" fill="none" marker-end="url(#ah2)"/>
+
+  <rect x="60" y="430" width="400" height="58" rx="8" fill="#c3fae8" stroke="#0e7490" stroke-width="2"/>
+  <text x="80" y="466" font-size="16" fill="#1e1e1e"><tspan font-weight="700">5</tspan>  test_bundle — 22 data checks</text>
+  <text x="490" y="466" font-size="14" fill="#6b7280">the numbers agree with each other</text>
+  <path d="M260 490 V506" stroke="#0e7490" stroke-width="2" fill="none" marker-end="url(#ah2)"/>
+
+  <rect x="60" y="510" width="400" height="58" rx="8" fill="#b2f2bb" stroke="#22c55e" stroke-width="2"/>
+  <text x="80" y="546" font-size="16" fill="#1e1e1e"><tspan font-weight="700">6</tspan>  smoke — real browser, 16 checks</text>
+  <text x="490" y="546" font-size="14" fill="#6b7280">the page actually renders</text>
+  <path d="M260 570 V590" stroke="#22c55e" stroke-width="2" fill="none" marker-end="url(#ah2)"/>
+
+  <!-- decision -->
+  <path d="M260 594 L400 634 L260 674 L120 634 Z" fill="#fff3bf" stroke="#f59e0b" stroke-width="2"/>
+  <text x="260" y="641" font-size="17" font-weight="700" text-anchor="middle" fill="#1e1e1e">all green?</text>
+
+  <path d="M404 634 H500" stroke="#22c55e" stroke-width="2" fill="none" marker-end="url(#ah2)"/>
+  <text x="440" y="624" font-size="14" font-weight="600" text-anchor="middle" fill="#15803d">yes</text>
+  <rect x="510" y="604" width="250" height="60" rx="8" fill="#b2f2bb" stroke="#22c55e" stroke-width="2"/>
+  <text x="635" y="632" font-size="15" font-weight="600" text-anchor="middle" fill="#1e1e1e">publish + commit db</text>
+  <text x="635" y="652" font-size="13" text-anchor="middle" fill="#15803d">then verify the live URL</text>
+
+  <path d="M116 634 H40" stroke="#ef4444" stroke-width="2" fill="none" marker-end="url(#ah2)"/>
+  <text x="78" y="624" font-size="14" font-weight="600" text-anchor="middle" fill="#b91c1c">no</text>
+
+  <!-- failure box, placed above the 'no' arrow so it does not run off canvas -->
+  <rect x="800" y="604" width="330" height="60" rx="8" fill="#ffc9c9" stroke="#ef4444" stroke-width="2"/>
+  <text x="965" y="632" font-size="15" font-weight="600" text-anchor="middle" fill="#1e1e1e">stop, and email you</text>
+  <text x="965" y="652" font-size="13" text-anchor="middle" fill="#b91c1c">the previous deploy stays live</text>
+
+  <!-- side note -->
+  <rect x="640" y="110" width="490" height="330" rx="10" fill="#f8f9fa" stroke="#adb5bd" stroke-width="1"/>
+  <text x="662" y="140" font-size="15" font-weight="700" fill="#1e1e1e">Why stage 6 exists</text>
+  <text x="662" y="170" font-size="14" fill="#374151">A refactor once changed a function's signature and</text>
+  <text x="662" y="194" font-size="14" fill="#374151">left one call site passing a stale variable.</text>
+  <text x="662" y="224" font-size="14" fill="#374151">It threw <tspan font-style="italic">after</tspan> the venue cards had rendered, so the</text>
+  <text x="662" y="248" font-size="14" fill="#374151">page looked perfectly healthy — while the pager</text>
+  <text x="662" y="272" font-size="14" fill="#374151">silently never appeared.</text>
+  <text x="662" y="304" font-size="14" font-weight="600" fill="#b91c1c">All 160 unit tests passed throughout.</text>
+  <text x="662" y="336" font-size="14" fill="#374151">Unit tests on an extracted function say nothing</text>
+  <text x="662" y="360" font-size="14" fill="#374151">about its call site. Only loading the page does.</text>
+  <text x="662" y="396" font-size="14" font-style="italic" fill="#6b7280">Verified by fault injection: re-introducing that</text>
+  <text x="662" y="418" font-size="14" font-style="italic" fill="#6b7280">exact bug makes stage 6 fail four checks.</text>
+
+  <text x="40" y="690" font-size="13" fill="#6b7280">A failed run is a no-op, not an outage — the last good deploy keeps serving.</text>
+</svg>

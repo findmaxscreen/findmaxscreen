@@ -1,0 +1,9 @@
+# Blank issues stay enabled: the "Report" link on each venue card arrives with
+# a prefilled title and body, which the template chooser would throw away.
+blank_issues_enabled: true
+contact_links:
+  - name: Correct the venue data at source
+    url: https://imax.fandom.com/wiki/List_of_IMAX_venues
+    about: >-
+      Projectors, screen sizes and locations come from the IMAX Wiki. Fixing it
+      there reaches everyone and flows back here on the next daily sync.

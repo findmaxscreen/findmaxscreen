@@ -1,0 +1,780 @@
+/* IMAX venue finder - one stylesheet, no build step, no external assets.
+ *
+ * The look is borrowed from Typora's Newsprint theme: warm paper, black-ink
+ * serif text, oxblood accents, and rules instead of boxes.  A cinema listing is
+ * a listings page, so it may as well read like one.
+ *
+ * Both palettes live in one place via light-dark(): every colour names its
+ * paper value first and its evening-edition value second.  The theme button
+ * flips `color-scheme` on :root, which is what light-dark() keys off, so there
+ * is no second copy of the palette to keep in sync.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --paper:      light-dark(#f3f2ee, #171613);
+  --raised:     light-dark(#fbfaf7, #1e1d19);
+  --ink:        light-dark(#1a1a18, #e8e4da);
+  --ink-strong: light-dark(#000000, #f6f3ec);
+  --muted:      light-dark(#6d6a63, #98928699);
+  --muted-flat: light-dark(#6d6a63, #989286);
+  --rule:       light-dark(#dcd9d1, #322f29);
+  --rule-firm:  light-dark(#c3bfb4, #45413a);
+
+  /* Oxblood: Newsprint's link colour, and the obvious home for the one badge
+     that is meant to stop you scrolling. */
+  --accent:     light-dark(#a03b3b, #e08a7e);
+  --accent-dim: light-dark(#a03b3b26, #e08a7e26);
+  --hot:        light-dark(#98302f, #e4796a);
+  --hot-bg:     light-dark(#a03b3b14, #e0796c1a);
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+           "PT Serif", Georgia, "Times New Roman", serif;
+
+  --measure: 1080px;
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"]  { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+
+/* The UA stylesheet gives [hidden] display:none, but any author rule setting
+   display (.toggle is inline-flex, .selects label is flex) outranks it and the
+   element stays visible.  Each tab hides the control it subsumes, so this has
+   to actually work. */
+[hidden] { display: none !important; }
+
+.sprite { display: none; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.wrap { max-width: var(--measure); margin: 0 auto; padding: 0 24px; }
+
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+
+/* Icons are monochrome line art; they take their colour from the text. */
+.icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.14em;
+}
+
+/* -------------------------------------------------------------- masthead */
+
+.masthead {
+  padding: 30px 0 20px;
+  border-bottom: 3px double var(--rule-firm);
+}
+.masthead .wrap { position: relative; }
+.masthead h1 {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--ink-strong);
+}
+.masthead h1 .icon {
+  font-size: 0.82em;
+  stroke-width: 1.5;
+  color: var(--accent);
+}
+.tagline {
+  margin: 6px 0 0;
+  font-size: 15px;
+  font-style: italic;
+  color: var(--muted-flat);
+}
+
+/* The editor's note: why this page is here at all. Set like a standfirst, with
+   a rule down the side, so it reads as comment rather than as instructions.
+
+   No `max-width` on this or the tagline, deliberately. A 65-character measure
+   is the textbook setting for reading, but the filter form directly beneath
+   runs the full 1080px, and a text column half that width above it reads as
+   truncated rather than considered. Matching the page beats matching the
+   typography manual. */
+.why {
+  margin: 14px 0 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--accent);
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--muted-flat);
+}
+.why strong { color: var(--ink); }
+
+.themetoggle {
+  position: absolute;
+  top: 4px;
+  right: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted-flat);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.themetoggle:hover { color: var(--ink); border-color: var(--rule-firm); }
+
+/* ------------------------------------------------------------------ tabs */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 20px 0 0;
+  border-bottom: 1px solid var(--rule-firm);
+}
+.tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  margin-bottom: -1px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--muted-flat);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 1px solid var(--rule-firm);
+  border-radius: 2px 2px 0 0;
+  cursor: pointer;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button.on {
+  color: var(--ink-strong);
+  font-weight: 700;
+  background: var(--raised);
+  border-color: var(--rule-firm);
+  border-bottom-color: var(--raised);
+}
+.tabs button.on .icon { color: var(--accent); }
+
+.countrypicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-flat);
+}
+.countrypicker select {
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: normal;
+  text-transform: none;
+  padding: 7px 9px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-radius: 2px;
+}
+
+/* --------------------------------------------------------------- verdict */
+
+/* The answer to "can I see real film where I live?" comes before any list. */
+.verdict {
+  margin: 18px 0 0;
+  padding: 18px 20px;
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-left: 3px solid var(--rule-firm);
+  border-radius: 2px;
+}
+.verdict.yes { border-left-color: var(--accent); }
+.verdict.no { border-left-color: var(--muted-flat); }
+
+.verdict p { margin: 0; max-width: 68ch; }
+.verdict-q {
+  font-size: 13px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-flat);
+}
+.verdict-a {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 6px !important;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink-strong);
+}
+.verdict.yes .verdict-a { color: var(--hot); }
+.verdict-a .icon { font-size: 26px; }
+.verdict .how {
+  margin-top: 10px !important;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--muted-flat);
+}
+
+/* -------------------------------------------------------------- controls */
+
+#controls {
+  padding: 18px 0 20px;
+  margin: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.searchrow { display: flex; align-items: center; gap: 10px; }
+.searchicon {
+  position: absolute;
+  margin-left: 12px;
+  font-size: 17px;
+  color: var(--muted-flat);
+  pointer-events: none;
+}
+
+#q {
+  flex: 1;
+  font: inherit;
+  font-size: 17px;
+  padding: 10px 14px 10px 38px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-radius: 2px;
+}
+#q::placeholder { color: var(--muted-flat); opacity: 0.8; }
+#q:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 15px;
+  padding: 9px 14px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-radius: 2px;
+  cursor: pointer;
+}
+button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+button.ghost:disabled { opacity: 0.5; cursor: progress; }
+
+.toggles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  font-size: 14px;
+  color: var(--muted-flat);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  cursor: pointer;
+  user-select: none;
+}
+.toggle:hover { border-color: var(--rule-firm); color: var(--ink); }
+.toggle:has(input:checked) {
+  color: var(--ink-strong);
+  background: var(--raised);
+  border-color: var(--rule-firm);
+}
+.toggle.accent:has(input:checked) {
+  color: var(--hot);
+  background: var(--hot-bg);
+  border-color: var(--accent);
+}
+.toggle input { accent-color: var(--accent); margin: 0; }
+
+.selects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.selects label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-flat);
+}
+.selects select {
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: normal;
+  text-transform: none;
+  padding: 8px 9px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-radius: 2px;
+}
+
+/* ---------------------------------------------------------------- legend */
+
+/* Its own section now rather than a <details> buried under the filters: it is
+   the key to every badge on the page, so it gets a tab. */
+.legend { margin: 4px 0 4px; }
+.typeshead {
+  margin: 18px 0 14px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--ink-strong);
+}
+
+.legend .standfirst {
+  max-width: 68ch;
+  margin: 0 0 18px;
+  font-size: 16px;
+  color: var(--muted-flat);
+}
+
+.ranks {
+  max-width: 72ch;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  counter-reset: rank;
+}
+.ranks > li {
+  position: relative;
+  padding: 0 0 14px 44px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+  counter-increment: rank;
+}
+.ranks > li:last-child { border-bottom: none; }
+.ranks > li::before {
+  content: counter(rank);
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 30px;
+  font-size: 24px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--rule-firm);
+}
+.ranks p { margin: 7px 0 0; font-size: 15px; }
+
+/* Badge in its own column rather than floated: wrapping text around a chip
+   this small just produces a ragged two-line indent. */
+.legend .aside {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 72ch;
+  margin: 0 0 14px;
+  padding-left: 44px;
+  font-size: 15px;
+  color: var(--muted-flat);
+}
+.legend .aside .badge { flex: none; margin-top: 2px; }
+
+/* --------------------------------------------------------------- results */
+
+/* ------------------------------------------------- active filters + pager */
+
+/* A row of removable chips rather than one "Clear" button: it says what is
+   narrowing the list as well as offering to stop it. */
+.activefilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.af-label {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-flat);
+}
+#af-chips { display: contents; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.chip .icon { font-size: 13px; color: var(--muted-flat); }
+.chip:hover { color: var(--hot); border-color: var(--accent); }
+.chip:hover .icon { color: var(--hot); }
+
+button.ghost.small { font-size: 13px; padding: 5px 11px; }
+button.ghost.small .icon { font-size: 14px; }
+
+/* Count on the left, pager on the right, so the list announces up front that
+   it is paged instead of hiding that fact 50 rows down. */
+.resultbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 4px;
+}
+.resultbar .count { margin: 0; }
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-flat);
+}
+.pager .pageinfo { white-space: nowrap; }
+.pager button:disabled { opacity: 0.35; cursor: default; }
+.pager button:disabled:hover { color: var(--ink); border-color: var(--rule-firm); }
+
+#pager-bottom .pager {
+  justify-content: center;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+  font-size: 14px;
+}
+
+/* The obvious next step after reading the verdict, offered as a button. */
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--rule);
+}
+.cta-q { font-size: 14px; font-style: italic; color: var(--muted-flat); }
+
+.count {
+  margin: 18px 0 4px;
+  font-size: 15px;
+  font-style: italic;
+  color: var(--muted-flat);
+}
+
+/* Reserved before the data arrives. Without it the footer sits just under the
+   filters at first paint and is then shoved down a full screen when the venues
+   render - which is a 0.66 layout shift on a short desktop viewport. */
+#results { min-height: 70vh; }
+
+.group { margin-bottom: 8px; }
+/* Country headings were set as quiet muted small-caps and were easy to scroll
+   straight past. They are the only landmark in a list of 476 rows, so they now
+   take the ink colour, a heavier rule beneath, and more air above than below —
+   which visually attaches each heading to the venues it introduces rather than
+   letting it float between two groups. */
+.group > h2 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 30px 0 0;
+  padding: 8px 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-strong);
+  background: var(--paper);
+  border-bottom: 2px solid var(--rule-firm);
+}
+/* The first heading should not push the list away from the count line. */
+.group:first-child > h2 { margin-top: 14px; }
+
+/* Rules, not boxes: a listings page separates entries with hairlines.
+ *
+ * Exactly two grid cells in one row - the facts on the left, the actions
+ * stacked down the trailing edge. Both halves of that matter:
+ *
+ *   - Two cells, because letting the title, place and badges each be grid items
+ *     in their own right put the link stack in the *title's* row and stretched
+ *     it. `grid-row: 1 / -1` does not fix that: with no explicit rows declared,
+ *     -1 resolves to the end of the explicit grid, which is line 1.
+ *   - Three links, not five. At five the stack was taller than everything
+ *     beside it, so it set the row height and the slack showed as gaps in the
+ *     middle of the card. Dropping Directions and the per-venue Report is what
+ *     made this layout viable again. */
+.venue {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 24px;
+  padding: 13px 0 14px;
+  border-bottom: 1px solid var(--rule);
+}
+.venue-main { grid-column: 1; min-width: 0; }
+.venue.film70 {
+  padding-left: 14px;
+  border-left: 3px solid var(--accent);
+  margin-left: -17px;
+}
+.venue.gone { opacity: 0.5; }
+
+.venue h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink-strong);
+}
+.where {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 3px 0 0;
+  font-size: 14px;
+  color: var(--muted-flat);
+}
+/* Slightly recessed: the pin is a marker for the eye scanning down the column,
+   not a thing to read. */
+.where .icon { font-size: 14px; opacity: 0.75; }
+
+.links {
+  grid-column: 2;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.links a { display: inline-flex; align-items: center; gap: 5px; }
+.links .icon { font-size: 14px; }
+
+/* ---------------------------------------------------------------- badges */
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted-flat);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  cursor: help;
+}
+.badge .icon { font-size: 15px; opacity: 0.85; }
+.badge.film .icon, .badge.tall .icon { opacity: 1; }
+
+/* The film badge is the one people are scanning for, so it is the only badge
+ * allowed to shout: oxblood, and sprocket perforations ruled along the top and
+ * bottom edges so it reads as a short strip of film. */
+.badge.film {
+  position: relative;
+  padding: 4px 11px;
+  font-weight: 700;
+  color: var(--hot);
+  background: var(--hot-bg);
+  border-color: var(--accent);
+}
+.badge.film::before,
+.badge.film::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  height: 2px;
+  background-image: repeating-linear-gradient(
+    to right, currentColor 0 3px, transparent 3px 7px);
+  opacity: 0.45;
+}
+.badge.film::before { top: 2px; }
+.badge.film::after { bottom: 2px; }
+
+.badge.tall {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  border-style: solid;
+  font-weight: 700;
+}
+.badge.size { font-variant-numeric: tabular-nums; }
+.badge.muted { border-style: dashed; opacity: 0.9; }
+
+.note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--muted-flat);
+}
+
+.empty, .error {
+  padding: 44px 16px;
+  text-align: center;
+  color: var(--muted-flat);
+  border-bottom: 1px solid var(--rule);
+}
+.empty p { margin: 0; }
+.empty .big {
+  margin-bottom: 6px;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink-strong);
+}
+.error { color: var(--hot); }
+
+/* ---------------------------------------------------------------- footer */
+
+/* Full-bleed like .masthead, with the centring left to the inner .wrap, so the
+   closing double rule spans the viewport exactly as the opening one does.
+   (Putting .wrap on <footer> itself and then setting `margin` here silently
+   overrode its `margin: 0 auto` and shunted the whole footer left.) */
+footer {
+  margin-top: 34px;
+  padding: 18px 0 48px;
+  border-top: 3px double var(--rule-firm);
+  font-size: 14px;
+  color: var(--muted-flat);
+}
+footer .src {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+footer .licence {
+  padding-top: 10px;
+  margin-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+}
+footer #asof { display: block; font-variant-numeric: tabular-nums; }
+
+/* ----------------------------------------------------------- admin page */
+/* Local-only tooling; never copied into dist/. */
+
+.panel {
+  padding: 18px 0 22px;
+  border-bottom: 1px solid var(--rule);
+}
+.panel h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-flat);
+}
+.panel .lede { max-width: 74ch; margin: 0 0 12px; font-size: 14px; color: var(--muted-flat); }
+.panel code {
+  padding: 1px 5px;
+  font-size: 0.9em;
+  background: var(--chip, var(--raised));
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 18px; margin: 0; }
+.facts dt { font-size: 13px; color: var(--muted-flat); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.log {
+  max-height: 320px;
+  padding: 12px 14px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.findings { margin: 0; padding: 0; list-style: none; }
+.findings li {
+  padding: 10px 0 10px 14px;
+  border-left: 3px solid var(--rule-firm);
+  margin-bottom: 8px;
+}
+.findings li.bad { border-left-color: var(--hot); }
+.findings li p { margin: 3px 0 0; font-size: 14px; color: var(--muted-flat); }
+.findings .examples { font-size: 13px; font-style: italic; }
+.ok { color: var(--accent); font-weight: 700; }
+
+table.changes { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.changes th {
+  text-align: left;
+  padding: 6px 10px 6px 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-flat);
+  border-bottom: 1px solid var(--rule-firm);
+}
+table.changes td {
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+table.changes td.was { color: var(--muted-flat); text-decoration: line-through; }
+
+@media (max-width: 620px) {
+  .masthead h1 { font-size: 27px; }
+  .themetoggle { position: static; margin-bottom: 12px; }
+  /* No room for a second column on a phone: fold the links underneath. */
+  .venue { grid-template-columns: 1fr; }
+  .links {
+    grid-column: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 2px 14px;
+    margin-top: 8px;
+  }
+}

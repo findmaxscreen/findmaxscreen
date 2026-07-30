@@ -1,0 +1,90 @@
+# ---------------------------------------------------------------- build ----
+# Rebuilt from theatres.sqlite3 by ./export.py on every run, so committing it would
+# only create merge noise. The daily workflow builds it fresh and uploads it as
+# a Pages artifact.
+dist/
+
+# ---------------------------------------------------------------- python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ------------------------------------------------------------------ node ----
+# web/package.json exists only so `node --test` reads the .js files there as ES
+# modules. There are no dependencies, but nothing should stop an accidental
+# `npm install` from being committed.
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# ---------------------------------------------------------------- sqlite ----
+# Write-ahead-log sidecars: transient, recreated on open, and committing them
+# would put a half-written transaction in git. Checkpoint before committing the
+# database (`PRAGMA wal_checkpoint(TRUNCATE)`) so the .sqlite3 file is complete
+# on its own.
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+
+# ------------------------------------------------------------------- os -----
+# .DS_Store leaks directory listings and window positions; the AppleDouble
+# files leak resource forks.
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# -------------------------------------------------------------- editors ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --------------------------------------------------------------- secrets ----
+# Nothing here needs a credential — GitHub Pages publishes with the built-in
+# GITHUB_TOKEN — but this repo is public, so make an accidental one hard.
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# ------------------------------------------------------------ local notes ----
+# The working note for whoever picks this up next: which machine account pushes,
+# which SSH alias bypasses the personal default, what is left to do. All of it is
+# specific to one laptop and stale the moment it is published, and it names a
+# personal address. It stays on disk and out of the repo; README.md,
+# ARCHITECTURE.md and REQUIREMENTS.md carry everything a reader actually needs.
+HANDOFF.md
+
+# ============================================================================
+# Deliberately NOT ignored — these carry the project's history and must ship:
+#
+#   theatres.sqlite3   Every soft-delete, venue_changes row, first-seen date and
+#                  geocode. A run starting from an empty database would lose
+#                  that history AND re-geocode all 476 venues daily, which
+#                  would get the project blocked by Nominatim within a week.
+#   snapshots/     Raw wikitext of every revision fetched, so a bad upstream
+#                  edit can always be diffed against what came before.
+#   web/data/venues.json
+#                  Written by export.py, so it looks like build output — but
+#                  test_bundle.py reads it, and the workflow runs the tests
+#                  before export.py. Ignoring it breaks the first gate on a
+#                  fresh checkout.
+#   web/CNAME      The custom domain. GitHub Pages reads it from inside the
+#                  published artifact and drops the domain on any deploy that
+#                  omits it.
+#   web/admin.*    Local-only tooling. Kept in the repo but never published:
+#                  export.py builds dist/ from an allow-list and then re-scans
+#                  the output, refusing if anything admin-shaped got in.
+# ============================================================================
