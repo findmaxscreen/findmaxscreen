@@ -106,8 +106,9 @@ a:hover { text-decoration-thickness: 2px; }
   color: var(--muted-flat);
 }
 
-/* The editor's note: why this page is here at all. Set like a standfirst, with
-   a rule down the side, so it reads as comment rather than as instructions.
+/* The editor's note: why this page is here at all. Folded away behind its own
+   summary - it earns a read once, not a permanent seven lines above the list
+   the page exists to show.
 
    No `max-width` on this or the tagline, deliberately. A 65-character measure
    is the textbook setting for reading, but the filter form directly beneath
@@ -116,8 +117,6 @@ a:hover { text-decoration-thickness: 2px; }
    typography manual. */
 .why {
   margin: 14px 0 0;
-  padding-left: 14px;
-  border-left: 3px solid var(--accent);
   font-size: 14.5px;
   line-height: 1.6;
   color: var(--muted-flat);
@@ -130,21 +129,21 @@ a:hover { text-decoration-thickness: 2px; }
 /* Shared by the masthead note and the filter panel. Both open closed: the note
    is read once, and the filters are a tool you reach for rather than something
    you need in view to read a list. Native <details> keeps the keyboard and
-   screen-reader behaviour without a line of JavaScript. */
+   screen-reader behaviour without a line of JavaScript.
+
+   The browser's own disclosure triangle is left in place rather than replaced
+   with an icon: it already says "this opens", it rotates on open for free, and
+   a second custom caret beside it just reads as a duplicate. That also means
+   no `display` change here - laying a summary out with flex detaches the
+   marker and it stops being suppressible or positionable. */
 .why > summary,
 .filterpanel > summary {
-  display: flex;
-  align-items: center;
-  gap: 7px;
   width: fit-content;
   padding: 2px 0;
   cursor: pointer;
   color: var(--ink);
   font-size: 14px;
-  list-style: none;          /* Firefox */
 }
-.why > summary::-webkit-details-marker,
-.filterpanel > summary::-webkit-details-marker { display: none; }
 
 .why > summary:hover,
 .filterpanel > summary:hover { color: var(--accent); }
@@ -156,21 +155,9 @@ a:hover { text-decoration-thickness: 2px; }
   border-radius: 2px;
 }
 
-/* The caret is the only state indicator, so it has to be legible at a glance:
-   pointing right when shut, down when open. */
-.chev {
-  flex: none;
-  font-size: 15px;
-  color: var(--muted-flat);
-  transition: transform 120ms ease;
-}
-[open] > summary .chev { transform: rotate(90deg); }
-
-@media (prefers-reduced-motion: reduce) {
-  .chev { transition: none; }
-}
-
-.filterpanel > summary { font-weight: 600; margin-top: 14px; }
+/* Enough air that the panel reads as its own thing rather than as part of the
+   search box directly above it. */
+.filterpanel > summary { font-weight: 600; margin-top: 24px; }
 
 .themetoggle {
   position: absolute;
