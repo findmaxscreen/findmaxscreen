@@ -138,9 +138,20 @@ export function storeCountry(country) {
  * second call effectively free - so storing it would buy nothing anyway.
  */
 
-/** True when a fix is even possible: needs the API and a secure context. */
+/**
+ * True when a fix is even possible.
+ *
+ * The secure-context check is not belt and braces: `navigator.geolocation`
+ * exists on a plain-HTTP origin too, and calling it there fails with
+ * PERMISSION_DENIED without ever showing a prompt. Testing over a LAN address
+ * would otherwise offer a button that cannot work and blame the visitor for
+ * refusing. localhost counts as secure, so local development is unaffected.
+ */
 export function canLocate() {
-  return typeof navigator !== "undefined" && "geolocation" in navigator;
+  return typeof navigator !== "undefined"
+    && "geolocation" in navigator
+    && typeof window !== "undefined"
+    && window.isSecureContext;
 }
 
 /**
@@ -169,7 +180,7 @@ export async function permissionState() {
 export function locate({ timeout = 8000, maximumAge = 300000 } = {}) {
   return new Promise((resolve, reject) => {
     if (!canLocate()) {
-      reject(Object.assign(new Error("no geolocation"), { code: "unavailable" }));
+      reject(Object.assign(new Error("no geolocation"), { code: "unsupported" }));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -211,8 +222,17 @@ export function explainPosition(status, accuracy = 0) {
         + "Your browser's site settings can undo that.";
     case "timeout":
       return "Your device took too long to find a position. Sorted by country instead.";
+    // POSITION_UNAVAILABLE. The browser tried and the device had nothing to
+    // give, which is not the same as the browser refusing - and on a Mac it is
+    // almost always one switch in System Settings rather than anything about
+    // this site. Saying "this browser won't" sent people looking in the wrong
+    // place entirely.
     case "unavailable":
-      return "This browser won't give a location here. Sorted by country instead.";
+      return "Your device couldn't work out where it is — on a Mac that is usually "
+        + "Location Services being off for your browser, under System Settings › "
+        + "Privacy & Security. Sorted by country instead.";
+    case "unsupported":
+      return "This browser can't share a location here. Sorted by country instead.";
     default:
       return "";
   }

@@ -42,6 +42,10 @@ const TAB_ALIASES = { country: "nearme", film70: "all" };
  * they have. Everything reads and writes their state through these two rather
  * than reaching for the attribute, which is how the old `.checked` calls stayed
  * consistent across eight call sites. */
+/* Every way a position request can end badly. Kept in one place because the
+ * two callers below both have to agree about what "it failed" means. */
+const GEO_FAILURES = ["denied", "unavailable", "timeout", "unsupported"];
+
 const isOn = (el) => el.getAttribute("aria-checked") === "true";
 const setOn = (el, on) => el.setAttribute("aria-checked", String(Boolean(on)));
 
@@ -612,7 +616,7 @@ function nearMeBanner() {
     return box;
   }
 
-  const failed = ["denied", "unavailable", "timeout"].includes(state.geoStatus);
+  const failed = GEO_FAILURES.includes(state.geoStatus);
   if (failed) box.classList.add("no");
   box.append(el("p", "verdict-q",
     state.geoStatus === "locating" ? "Finding you…" : "Where are you?"));
@@ -863,7 +867,7 @@ function setCountry(country, { remember = true } = {}) {
  */
 function locateForNearMe() {
   if (!canLocate() || state.origin) return;
-  if (["locating", "denied", "unavailable", "timeout"].includes(state.geoStatus)) return;
+  if (state.geoStatus === "locating" || GEO_FAILURES.includes(state.geoStatus)) return;
   requestPosition();
 }
 
