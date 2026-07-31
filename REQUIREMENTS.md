@@ -360,8 +360,24 @@ deployment live, so a bad run is a no-op rather than an outage.
    venue count within 15% of the committed database, geocode coverage above
    80%, and a coordinate audit using `geo_matched`.
 6. **`smoke.py`** — loads the built site in headless Chrome.
-7. **Post-deploy** — fetches the live URL and checks the venue count matches and
-   `/admin.html` 404s.
+7. **Post-deploy** — fetches the live URL and checks the title renders, the venue
+   count matches, and `/admin.html` 404s. This one runs *after* publishing, so it
+   reports rather than prevents.
+
+**Gate 7 was two-thirds decorative until 2026-07-31**, and the way it failed is
+worth keeping in mind when writing any future check. Each assertion was written
+as `check && echo "  ok ..."`, and under `bash -e` a command that fails inside a
+`&&` list is **not** fatal unless it is the final command in the list. So a failed
+check merely skipped its own `ok` line and execution carried on; only the last
+assertion in the script decided the step's exit status. The homepage check had in
+fact been failing since `b781bf9` retitled the page to "Find Max Screen" while the
+grep still looked for `FindMaxScreen` — a green run, printing no `ok`, asserting
+nothing. Assertions are now separate commands, so `bash -e` does its job.
+
+Note also that `set -o pipefail` is deliberately *not* used there. Every pipeline
+in that step ends in a command that fails on bad input, so a dead `curl` is caught
+anyway — while pipefail would break the passing case, because `grep -q` exits at
+the first match and `curl` then dies writing to a closed pipe.
 
 **Why `smoke.py` exists.** Extracting `paginate()` changed `renderPager`'s
 signature and left the old call site passing a now-undefined variable. It threw

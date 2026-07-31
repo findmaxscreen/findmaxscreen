@@ -152,17 +152,29 @@ jobs:
       # this is guaranteed a MISS — the check tests the deploy, not how fast the
       # purge propagated. GitHub Pages ignores query strings, so the origin
       # response is unchanged.
+      #
+      # Each assertion stands alone rather than as `check && echo ok`. Under
+      # `bash -e` a failure inside a && list is not fatal unless it is the final
+      # command, so the old form swallowed its own failures: only the last check
+      # gated the step. That hid a broken homepage assertion for a full release —
+      # b781bf9 retitled the page to "Find Max Screen" and the grep for
+      # "FindMaxScreen" could no longer match, silently, on a green run.
+      #
+      # Deliberately no `set -o pipefail`: every pipeline here ends in a command
+      # that fails on bad input, so a dead curl is caught regardless — and
+      # pipefail would break the happy path, since `grep -q` exits on first match
+      # and curl then dies writing to the closed pipe (exit 23).
       - name: Verify the deployment
         run: |
           URL="${{ steps.deploy.outputs.page_url }}"
           Q="?ci=${{ github.run_id }}"
           echo "checking $URL"
-          curl -sSfL "${URL}${Q}" | grep -q "FindMaxScreen" \
-            && echo "  ok   homepage serves"
+          curl -sSfL "${URL}${Q}" | grep -q "<title>Find Max Screen"
+          echo "  ok   homepage serves"
           EXPECTED=$(python3 -c "import json;print(json.load(open('dist/data/venues.json'))['stats']['venues'])")
           LIVE=$(curl -sSfL "${URL}data/venues.json${Q}" | python3 -c "import json,sys;print(json.load(sys.stdin)['stats']['venues'])")
-          test "$EXPECTED" = "$LIVE" \
-            && echo "  ok   live data has $LIVE venues"
+          test "$EXPECTED" = "$LIVE"
+          echo "  ok   live data has $LIVE venues"
           CODE=$(curl -s -o /dev/null -w '%{http_code}' "${URL}admin.html${Q}")
-          test "$CODE" = "404" \
-            && echo "  ok   admin.html is not published (HTTP $CODE)"
+          test "$CODE" = "404"
+          echo "  ok   admin.html is not published (HTTP $CODE)"
