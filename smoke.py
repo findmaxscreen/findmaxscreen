@@ -91,11 +91,28 @@ navigator.permissions.query = async () => ({ state: "granted" });
 </script>
 """
 
+# The macOS failure shape: the one-shot answers kCLErrorLocationUnknown
+# immediately, but a watch produces a fix once the provider has warmed up.
+# geo.js must fall back from the first to the second, or a Mac that could
+# locate itself in five seconds reports that it cannot at all.
+FLAKY_STUB = """<script>
+navigator.geolocation.getCurrentPosition = (ok, fail) =>
+  fail({ code: 2, message: "kCLErrorLocationUnknown" });
+navigator.geolocation.watchPosition = (ok) => {
+  setTimeout(() => ok({
+    coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 1200 } }), 300);
+  return 1;
+};
+navigator.geolocation.clearWatch = () => {};
+navigator.permissions.query = async () => ({ state: "granted" });
+</script>
+"""
+
 MODULE_TAG = '<script type="module" src="app.js"></script>'
 
 
 @contextmanager
-def located(dist: Path):
+def located(dist: Path, stub: str = LONDON_STUB):
     """Serve a copy of `dist` whose browser always reports it is in London."""
     with tempfile.TemporaryDirectory() as tmp:
         site = Path(tmp) / "site"
@@ -105,7 +122,7 @@ def located(dist: Path):
         if MODULE_TAG not in html:
             raise SystemExit("smoke: index.html no longer loads app.js as a "
                              "module; the geolocation stub cannot be injected")
-        page.write_text(html.replace(MODULE_TAG, LONDON_STUB + MODULE_TAG))
+        page.write_text(html.replace(MODULE_TAG, stub + MODULE_TAG))
         with serving(site) as base:
             yield base
 
@@ -200,7 +217,7 @@ def check(name: str, condition: bool, detail: str = "") -> bool:
     return condition
 
 
-def check_located(chrome: str, base: str) -> list[str]:
+def check_located(chrome: str, base: str, tag: str = "located") -> list[str]:
     """The half of Near me that needs a position: run against `located()`."""
     failures: list[str] = []
 
@@ -210,13 +227,13 @@ def check_located(chrome: str, base: str) -> list[str]:
 
     dom, stderr = render(chrome, f"{base}/?tab=nearme")
     errors = console_errors(stderr)
-    assert_("located: no console errors", not errors, "; ".join(errors[:2]))
+    assert_(f"{tag}: no console errors", not errors, "; ".join(errors[:2]))
 
     away = re.findall(r'class="away"[^>]*>([^<]+)<', dom)
-    assert_("located: distances are shown", len(away) > 0)
+    assert_(f"{tag}: distances are shown", len(away) > 0)
 
     names = re.findall(r"<h3>([^<]+)</h3>", dom)
-    assert_("located: the nearest venue is first",
+    assert_(f"{tag}: the nearest venue is first",
             bool(names) and "BFI IMAX" in names[0],
             f"first card is {names[0] if names else 'missing'!r}, expected the BFI")
 
@@ -228,13 +245,13 @@ def check_located(chrome: str, base: str) -> list[str]:
         return 0.5 if text.startswith("<") else float(text.split()[0].replace(",", ""))
 
     values = [km(a) for a in away]
-    assert_("located: distances ascend down the page", values == sorted(values),
+    assert_(f"{tag}: distances ascend down the page", values == sorted(values),
             f"first five: {values[:5]}")
 
     # The country pin has to come off, or "nearest" means "nearest in the
     # country the browser guessed" - which is how Delhi outranked Mumbai.
     countries = set(re.findall(r'class="where">.*?</svg>[^<]*?([A-Z][^<,]*)<', dom))
-    assert_("located: ranking is worldwide, not pinned to one country",
+    assert_(f"{tag}: ranking is worldwide, not pinned to one country",
             len(countries) > 1 or len(away) < 25, f"countries on page one: {countries}")
     return failures
 
@@ -366,6 +383,12 @@ def main(argv: list[str] | None = None) -> int:
     # to a human: it would look like the real site and lie about where they are.
     with located(args.dist) as base:
         failures += check_located(chrome, base)
+
+    # And a third, simulating the macOS failure: the one-shot ask fails with
+    # code 2, and only a watch produces the fix. Same assertions must pass -
+    # the visitor should never be able to tell which path delivered.
+    with located(args.dist, stub=FLAKY_STUB) as base:
+        failures += check_located(chrome, base, tag="flaky provider")
 
     if args.keep_open:
         with serving(args.dist) as base:

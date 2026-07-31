@@ -169,6 +169,16 @@ export async function permissionState() {
   }
 }
 
+const fix = (pos) => ({
+  lat: pos.coords.latitude,
+  lon: pos.coords.longitude,
+  accuracy: pos.coords.accuracy,
+});
+
+const geoError = (err) => Object.assign(
+  new Error(err.message || String(err.code)),
+  { code: err.code === 1 ? "denied" : err.code === 3 ? "timeout" : "unavailable" });
+
 /**
  * Ask for a position. Resolves {lat, lon, accuracy}; rejects with a code of
  * "denied", "unavailable" or "timeout" so the caller can say something useful.
@@ -181,6 +191,15 @@ export async function permissionState() {
  * doing a cold Wi-Fi fix can take well over ten seconds, and telling that
  * visitor their device "took too long" reads as a fault when they were merely
  * being made to wait. Better to wait longer and be right.
+ *
+ * A one-shot request is not the whole story, though. getCurrentPosition asks
+ * the OS for a position it may simply not have yet: macOS answers a cold ask
+ * with kCLErrorLocationUnknown (code 2) *immediately*, before Wi-Fi scanning
+ * has had any chance to produce a fix - which reads as "your device couldn't
+ * work out where it is" on a machine that could, given five seconds. So a
+ * failed one-shot falls back to watching: watchPosition keeps the request open
+ * while the provider warms up, the first fix wins, and only a denial - or the
+ * watch itself coming up empty - is reported as failure.
  */
 export function locate({ timeout = 15000, maximumAge = 300000 } = {}) {
   return new Promise((resolve, reject) => {
@@ -189,20 +208,45 @@ export function locate({ timeout = 15000, maximumAge = 300000 } = {}) {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-      }),
+      (pos) => resolve(fix(pos)),
       (err) => {
-        const code = err.code === 1 ? "denied"
-          : err.code === 3 ? "timeout"
-          : "unavailable";
-        reject(Object.assign(new Error(err.message || code), { code }));
+        if (err.code === 1) reject(geoError(err));
+        else watchForFix(resolve, reject, err);
       },
       { enableHighAccuracy: false, timeout, maximumAge },
     );
   });
+}
+
+/* The warm-up path. High accuracy is on here, unlike the one-shot: this only
+ * runs after the cheap ask failed, so the extra sensors are now worth their
+ * cost - they are the difference between an answer and no answer. */
+function watchForFix(resolve, reject, firstErr, { patience = 12000 } = {}) {
+  let watchId;
+  let settled = false;
+
+  const settle = (fn, arg) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    navigator.geolocation.clearWatch(watchId);
+    fn(arg);
+  };
+
+  // Report the original one-shot error, not a timeout of our own making:
+  // "unavailable" with the OS's message is the truthful account of what failed.
+  const timer = setTimeout(() => settle(reject, geoError(firstErr)), patience);
+
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => settle(resolve, fix(pos)),
+    (err) => {
+      // A denial can arrive mid-watch (the visitor dismisses a prompt they
+      // had left open); that is final. Further code-2 reports are just the
+      // provider still warming up - the timer decides when to stop believing.
+      if (err.code === 1) settle(reject, geoError(err));
+    },
+    { enableHighAccuracy: true, timeout: patience, maximumAge: 0 },
+  );
 }
 
 /**
