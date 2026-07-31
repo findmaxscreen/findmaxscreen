@@ -5,7 +5,9 @@
  * refresh tooling lives in admin.html, which is never published.
  */
 
-import { index, search, countryReport, paginate, cityIndex } from "./query.js";
+import {
+  index, search, countryReport, paginate, cityIndex, fold, haversineKm,
+} from "./query.js";
 import {
   detectCountry, storeCountry, explain,
   canLocate, locate, permissionState, explainPosition,
@@ -629,6 +631,26 @@ function nearMeBanner() {
         "Every venue on earth, closest to you at the top. Distances are "
         + "straight lines, and about half these theatres are mapped to their "
         + "city rather than their door."));
+      // A measured fix lives only in memory, so a reload on a machine whose
+      // provider fails cold loses the ranking entirely. Offering to remember
+      // the nearest city converts detection into declaration - the visitor
+      // says it, so it may be stored - and a reload then opens ranked from
+      // that city while a fresh fix is tried quietly behind it.
+      const near = nearestCity();
+      if (near && !readStoredCity()) {
+        const wrap = el("div", "cta");
+        wrap.append(el("span", "cta-q", "Keep this working after a reload?"));
+        const b = el("button", "ghost small");
+        b.type = "button";
+        b.append(icon("pin"), document.createTextNode(`Remember I'm near ${near}`));
+        b.addEventListener("click", () => {
+          storeCity(near);
+          state.originCity = near;
+          update();
+        });
+        wrap.append(b);
+        box.append(wrap);
+      }
     }
     return box;
   }
@@ -677,27 +699,88 @@ function nearMeBanner() {
   // machine that cannot produce a fix (an access point Apple has never heard
   // of, say) fails identically forever, and a dead end here means the whole
   // section never works for that person at all.
-  if (state.geoStatus !== "locating") box.append(cityPicker());
+  box.append(cityPicker());
   return box;
 }
 
 /* A typeahead over every city the data can measure from. A named city becomes
  * the origin exactly as a fix would, at the only precision the ranking ever
- * claims - half the venues are mapped to their city centre anyway. */
+ * claims - half the venues are mapped to their city centre anyway.
+ *
+ * The menu is drawn by hand rather than with <datalist>: the native popover is
+ * browser chrome, takes no CSS at all, and sat inside the newsprint page like a
+ * sticker on a broadsheet. Matching happens through fold(), so "sao" finds
+ * S\u00e3o Paulo the same way the search box would. */
 function cityPicker() {
   const wrap = el("div", "cta");
   const lbl = el("label", "cta-q");
   lbl.append(document.createTextNode("Or name your city:\u00a0"));
+  const box = el("span", "citybox");
   const input = el("input", "citypick");
   input.type = "text";
   input.placeholder = "Start typing\u2026";
-  input.setAttribute("list", "cities");
-  input.addEventListener("change", () => {
-    if (setManualOrigin(input.value.trim())) input.value = "";
+  input.autocomplete = "off";
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-expanded", "false");
+  const menu = el("ul", "citymenu");
+  menu.hidden = true;
+
+  const close = () => {
+    menu.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  };
+
+  input.addEventListener("input", () => {
+    const q = fold(input.value.trim());
+    if (!q) { close(); return; }
+    const rows = [];
+    for (const name of state.cities.keys()) {
+      if (fold(name).includes(q)) {
+        rows.push(name);
+        if (rows.length === 8) break;
+      }
+    }
+    menu.replaceChildren(...rows.map((name) => {
+      const li = el("li");
+      const b = el("button", null, name);
+      b.type = "button";
+      // mousedown, not click: it fires before the input's blur closes the
+      // menu, so the choice lands instead of evaporating.
+      b.addEventListener("mousedown", (e) => { e.preventDefault(); setManualOrigin(name); });
+      li.append(b);
+      return li;
+    }));
+    menu.hidden = rows.length === 0;
+    input.setAttribute("aria-expanded", String(!menu.hidden));
   });
-  lbl.append(input);
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const first = menu.querySelector("button");
+      if (first) setManualOrigin(first.textContent);
+      else setManualOrigin(input.value.trim());
+    } else if (e.key === "Escape") close();
+  });
+  input.addEventListener("blur", close);
+
+  box.append(input, menu);
+  lbl.append(box);
   wrap.append(lbl);
   return wrap;
+}
+
+/* The city the fix landed nearest to, for offering to remember. 150 km keeps
+ * the offer honest: an origin in the middle of nowhere names nothing. */
+function nearestCity() {
+  if (!state.origin || !state.cities) return "";
+  let best = "";
+  let bestKm = Infinity;
+  for (const [name, c] of state.cities) {
+    const km = haversineKm(state.origin.lat, state.origin.lon, c.lat, c.lon);
+    if (km < bestKm) { bestKm = km; best = name; }
+  }
+  return bestKm <= 150 ? best : "";
 }
 
 function preciseCta() {
@@ -907,8 +990,6 @@ function fillFilmSelect(select, rows, total70) {
 
 function fillCities() {
   state.cities = cityIndex(state.venues);
-  const list = $("cities");
-  for (const name of state.cities.keys()) list.append(option(name, name));
 }
 
 function fillControls(facets) {
@@ -1007,12 +1088,31 @@ async function requestPosition() {
  */
 async function restorePosition() {
   const wanted = CONTROLS.sort.value === "distance" || state.tab === "nearme";
-  if (!wanted || state.origin) return;
+  if (!wanted) return;
+  if (state.origin && state.geoStatus !== "manual") return;
 
   if (!canLocate() || await permissionState() !== "granted") {
-    if (CONTROLS.sort.value === "distance") {
+    if (!state.origin && CONTROLS.sort.value === "distance") {
       CONTROLS.sort.value = "location";
       update();
+    }
+    return;
+  }
+
+  // A remembered city is already ranking the list, so the upgrade to a
+  // measured fix happens without touching geoStatus: flipping the banner to
+  // "Finding you\u2026" and back for an attempt the visitor never asked to
+  // watch would be flicker in the one place the page had just settled.
+  if (state.origin) {
+    try {
+      const got = await locate({ patience: 5000 });
+      state.origin = { lat: got.lat, lon: got.lon };
+      state.geoAccuracy = got.accuracy || 0;
+      setGeoStatus("located");
+      CONTROLS.sort.value = "distance";
+      update();
+    } catch {
+      /* the named city stands */
     }
     return;
   }

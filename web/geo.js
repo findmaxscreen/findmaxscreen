@@ -224,7 +224,7 @@ const geoError = (err) => Object.assign(
  * while the provider warms up, the first fix wins, and only a denial - or the
  * watch itself coming up empty - is reported as failure.
  */
-export function locate({ timeout = 15000, maximumAge = 300000 } = {}) {
+export function locate({ timeout = 15000, maximumAge = 300000, patience = 12000 } = {}) {
   return new Promise((resolve, reject) => {
     if (!canLocate()) {
       reject(Object.assign(new Error("no geolocation"), { code: "unsupported" }));
@@ -234,7 +234,7 @@ export function locate({ timeout = 15000, maximumAge = 300000 } = {}) {
       (pos) => resolve(fix(pos)),
       (err) => {
         if (err.code === 1) reject(geoError(err));
-        else watchForFix(resolve, reject, err);
+        else watchForFix(resolve, reject, err, { patience });
       },
       { enableHighAccuracy: false, timeout, maximumAge },
     );

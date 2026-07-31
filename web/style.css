@@ -681,6 +681,42 @@ button.ghost.small .icon { font-size: 14px; }
 }
 .citypick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* The suggestion menu under it - ours, because the native datalist popover is
+   browser chrome and takes no styling, which stuck out of the newsprint page
+   like a sticker. Anchored to the input, raised paper, hairline edge. */
+.citybox { position: relative; display: inline-block; }
+.citymenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 230px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-radius: 2px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
+}
+.citymenu li { margin: 0; }
+.citymenu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 9px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.citymenu button:hover { background: var(--hot-bg); color: var(--hot); }
+
 /* Sits under the result count, where the reason for the order belongs. Same
    recessed italic as the "how we guessed" line in the Near me section, because
    it is the same kind of remark. */
