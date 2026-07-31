@@ -319,7 +319,7 @@ button.ghost {
   color: var(--ink);
   background: var(--raised);
   border: 1px solid var(--rule-firm);
-  border-radius: 2px;
+  border-radius: 9px;
   cursor: pointer;
 }
 button.ghost:hover { border-color: var(--accent); color: var(--accent); }
@@ -335,9 +335,10 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   color: var(--muted-flat);
   background: transparent;
   border: 1px solid var(--rule);
-  /* The one place the hairline-and-2px house style gives way. Everything else
-     here is a rule or a panel edge; these are the only things meant to be
-     pressed, and the rounding is what says so at a glance. */
+  /* Part of the one place the hairline-and-2px house style gives way. The rule
+     is by role, not by element: anything you press is rounded - these switches,
+     the filter chips, the ghost buttons - while rules, panels and the inputs
+     you type or choose into stay square. */
   border-radius: 9px;
   cursor: pointer;
   user-select: none;
@@ -518,7 +519,7 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   color: var(--ink);
   background: var(--raised);
   border: 1px solid var(--rule-firm);
-  border-radius: 2px;
+  border-radius: 9px;
   cursor: pointer;
 }
 .chip .icon { font-size: 13px; color: var(--muted-flat); }
