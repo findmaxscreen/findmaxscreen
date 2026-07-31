@@ -96,6 +96,8 @@ const state = {
   cities: null,
   geoStatus: "idle",
   geoAccuracy: 0,
+  // The browser's verbatim error message from the last failed ask.
+  geoDetail: "",
 };
 
 /* The wiki stores terse family codes.  Spelling them out - and saying what they
@@ -683,7 +685,9 @@ function nearMeBanner() {
   // this box that "it didn't work" and "here is why" read as unrelated - and
   // the why is the difference between checking a setting and giving up.
   if (failed) {
-    box.append(el("p", "how", explainPosition(state.geoStatus, state.geoAccuracy)));
+    const why = explainPosition(state.geoStatus, state.geoAccuracy);
+    box.append(el("p", "how",
+      state.geoDetail ? `${why} (Your browser said: \u201c${state.geoDetail}\u201d.)` : why));
   }
 
   if (failed && state.geoStatus !== "unsupported") {
@@ -1074,10 +1078,16 @@ async function requestPosition() {
     // unranked list.
     if (state.originCity && setManualOrigin(state.originCity)) return false;
     state.origin = null;
+    // The OS's own words, kept verbatim: this hunt has been one guess at the
+    // failure after another, and the raw message is the thing that settles it.
+    state.geoDetail = err.message || "";
     setGeoStatus(err.code || "unavailable");
     // Leave the control saying what the list actually does.
     if (CONTROLS.sort.value === "distance") CONTROLS.sort.value = "location";
     update();
+    // The question the failure leaves open is "then where are you?" - so put
+    // the caret in the box that takes the answer.
+    banner.querySelector(".citypick")?.focus();
     return false;
   }
 }

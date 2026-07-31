@@ -210,10 +210,9 @@ const geoError = (err) => Object.assign(
  * and enabling it can spin up GPS for tens of seconds on a phone. A five-minute
  * cached fix is accepted for the same reason.
  *
- * The timeout is generous because the failure it produces is a lie: a desktop
- * doing a cold Wi-Fi fix can take well over ten seconds, and telling that
- * visitor their device "took too long" reads as a fault when they were merely
- * being made to wait. Better to wait longer and be right.
+ * The one-shot timeout can afford to be brisk because failing it costs
+ * nothing: the watch below inherits the wait, and the slow-but-working
+ * provider gets its ten patient seconds there rather than up front.
  *
  * A one-shot request is not the whole story, though. getCurrentPosition asks
  * the OS for a position it may simply not have yet: macOS answers a cold ask
@@ -224,8 +223,8 @@ const geoError = (err) => Object.assign(
  * while the provider warms up, the first fix wins, and only a denial - or the
  * watch itself coming up empty - is reported as failure.
  */
-export function locate({ timeout = 15000, maximumAge = 300000, patience = 12000 } = {}) {
-  return new Promise((resolve, reject) => {
+export function locate({ timeout = 8000, maximumAge = 300000, patience = 10000 } = {}) {
+  const attempt = new Promise((resolve, reject) => {
     if (!canLocate()) {
       reject(Object.assign(new Error("no geolocation"), { code: "unsupported" }));
       return;
@@ -239,6 +238,16 @@ export function locate({ timeout = 15000, maximumAge = 300000, patience = 12000 
       { enableHighAccuracy: false, timeout, maximumAge },
     );
   });
+
+  // Browsers have shipped bugs where neither callback ever fires. However the
+  // ask goes, the interface must settle: a button reading "Finding you..."
+  // forever is worse than any honest failure.
+  const deadline = new Promise((_, reject) => {
+    setTimeout(() => reject(Object.assign(
+      new Error("the browser never answered"), { code: "timeout" })),
+      timeout + patience + 3000);
+  });
+  return Promise.race([attempt, deadline]);
 }
 
 /* The warm-up path. High accuracy is on here, unlike the one-shot: this only
