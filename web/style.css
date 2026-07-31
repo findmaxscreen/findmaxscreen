@@ -342,12 +342,14 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
 .toggle:hover { border-color: var(--rule-firm); color: var(--ink); }
 /* Switches now, not labels wrapping a checkbox: the state lives on the element
    as aria-checked, so the selector reads it there. */
+/* Every switch turns oxblood when it is on, the 70 mm one included. It used to
+   be the only one that did, and the others went a raised near-white - so two
+   controls sitting in the same panel, doing the same thing, disagreed about
+   what "on" looks like. One state, one colour.
+
+   The 70 mm switch keeps its prominence through size and position rather than
+   through being the only red thing. */
 .toggle[aria-checked="true"] {
-  color: var(--ink-strong);
-  background: var(--raised);
-  border-color: var(--rule-firm);
-}
-.toggle.accent[aria-checked="true"] {
   color: var(--hot);
   background: var(--hot-bg);
   border-color: var(--accent);
