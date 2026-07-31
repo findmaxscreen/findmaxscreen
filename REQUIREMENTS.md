@@ -646,10 +646,30 @@ country control, not two: the old picker said "your country" while the filter
 below said "Country", and they were the same question asked twice.
 
 A bare visit defaults that country to the detected one, so the site opens on
-what is near you; **any** query string suppresses the default, because a link
-must open on exactly what it says rather than re-adding a filter its sender
-cleared. The `FILTERING BY` chip makes the scoping visible and removable in one
-tap.
+what is near you. The default is decided by the `country` parameter alone, not
+by whether the URL has one at all:
+
+| URL | Shows |
+|---|---|
+| `/` | your country — and the address bar **stays** `/` |
+| `?country=Japan` | Japan |
+| `?country=any` | everywhere |
+| `?film70=1` | 15/70 mm in your country, and reloads to the same thing |
+
+A guessed country is never written into the URL, because it is not something
+the visitor did; that is what keeps the front page's own address clean. The
+corollary is that "everywhere" has to be said out loud as `country=any`, or a
+reload of a widened list would spring back to wherever you are. The
+`FILTERING BY` chip makes the scoping visible and removable in one tap.
+
+**The masthead is the way back.** Tapping *Find Max Screen* clears every filter,
+returns to All venues and page one, and puts the country back to the guess
+rather than to Anywhere — landing on exactly the state, and the URL, of a first
+visit. It is a real anchor to `./` so middle-click still opens a tab; the plain
+left-click is intercepted and does it in place. It is styled as no kind of link
+at all, in any state: a masthead is already understood to be the way home, and
+dressing it as body copy made the one fixed piece of furniture on the page
+twitch under the pointer.
 
 My Country ends with a call to action rather than leaving you to work out which
 control narrows the list: "Want to see just those?" sets the country *and* the

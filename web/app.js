@@ -61,6 +61,14 @@ const state = {
   // filter bar, so it surfaces as a removable chip instead.
   region: "",
   page: 1,
+  /* True while the country filter holds the guess rather than a choice.
+   *
+   * It is what keeps the front page's URL empty: an automatic country is not
+   * something the visitor did, so it does not belong in a link. The corollary
+   * is that a URL with no `country` gets the default applied on arrival, which
+   * is why clearing the filter deliberately writes `country=any` - otherwise a
+   * reload of "everywhere" would come back scoped to wherever you are. */
+  countryAuto: false,
   // A precise fix, once the visitor has offered one. Memory only, never
   // localStorage - see the note in geo.js about why a lat/lon is not a country.
   origin: null,
@@ -187,7 +195,10 @@ function activeFilters() {
   // Near me ignores the country filter outright, so offering to clear it there
   // would be offering to switch off something that is already off.
   if (state.tab !== "nearme" && CONTROLS.country.value) {
-    add(CONTROLS.country.value, () => { CONTROLS.country.value = ""; });
+    add(CONTROLS.country.value, () => {
+      CONTROLS.country.value = "";
+      state.countryAuto = false;
+    });
   }
   if (state.region) add(state.region, () => { state.region = ""; });
   if (CONTROLS.projector.value) {
@@ -218,6 +229,9 @@ function resetFilters() {
   for (const key of TOGGLES) setOn(CONTROLS[key], false);
   for (const key of ["country", "projector", "film", "ar"]) CONTROLS[key].value = "";
   CONTROLS.sort.value = "location";
+  // Clearing the country here is a deliberate widening to everywhere, not a
+  // return to the guess. Only the masthead does the latter.
+  state.countryAuto = false;
   state.region = "";
 }
 
@@ -251,7 +265,13 @@ function syncUrlBar() {
   // Read from the control, not the criteria: Near me blanks the country in
   // criteria() to unpin the search, and a link that dropped it would come back
   // with the visitor's country filter silently cleared.
-  if (CONTROLS.country.value) params.set("country", CONTROLS.country.value);
+  //
+  // A guessed country is left out entirely - that is what makes the front page
+  // "/" and not "/?country=India" - while a deliberate "everywhere" is written
+  // as `any`, because the absence of the parameter already means "guess".
+  if (!state.countryAuto) {
+    params.set("country", CONTROLS.country.value || "any");
+  }
   for (const key of ["projector", "film", "ar"]) {
     if (CONTROLS[key].value) params.set(key, CONTROLS[key].value);
   }
@@ -519,6 +539,7 @@ function film70Cta(report, country) {
     action = "Show all 58 worldwide";
     apply = () => {
       CONTROLS.country.value = "";
+      state.countryAuto = false;
       state.region = "";
       setOn(CONTROLS.film70, true);
     };
@@ -532,6 +553,7 @@ function film70Cta(report, country) {
     // all 13 Indian venues and left the reader to find the toggle.
     apply = () => {
       CONTROLS.country.value = country;
+      state.countryAuto = false;
       state.region = "";
       setOn(CONTROLS.film70, true);
     };
@@ -544,6 +566,7 @@ function film70Cta(report, country) {
     apply = () => {
       state.region = report.region;
       CONTROLS.country.value = "";
+      state.countryAuto = false;
       setOn(CONTROLS.film70, true);
     };
   } else {
@@ -809,6 +832,10 @@ function fillControls(facets) {
  * a stored one - a visitor widening the list has not moved house. */
 function setCountry(country, { remember = true } = {}) {
   CONTROLS.country.value = country;
+  // Touching the control at all makes it a choice, including choosing
+  // Anywhere - which is why a widened list keeps its `country=any` in the URL
+  // instead of springing back to your own country on the next load.
+  state.countryAuto = false;
   if (country) {
     state.country = country;
     if (remember) storeCountry(country);
@@ -908,9 +935,16 @@ function restoreFromUrl() {
   const params = new URLSearchParams(location.search);
   CONTROLS.q.value = params.get("q") || "";
   for (const key of TOGGLES) setOn(CONTROLS[key], params.get(key) === "1");
-  for (const key of ["country", "projector", "film", "ar", "sort"]) {
+  for (const key of ["projector", "film", "ar", "sort"]) {
     if (params.get(key)) CONTROLS[key].value = params.get(key);
   }
+
+  // No `country` at all means "wherever the visitor is", and start() fills it
+  // in. `any` is the explicit opposite, and the only way to say "everywhere" in
+  // a link that survives a reload.
+  const country = params.get("country");
+  state.countryAuto = !country;
+  if (country) CONTROLS.country.value = country === "any" ? "" : country;
   state.region = params.get("region") || "";
   state.page = Math.max(1, parseInt(params.get("page"), 10) || 1);
   const tab = params.get("tab") || "all";
@@ -976,7 +1010,11 @@ function wire() {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     resetFilters();
+    // Back to the guess, and back to being a guess: countryAuto is what keeps
+    // it out of the URL, so the address bar ends up at "/" like a first visit
+    // rather than at "/?country=India".
     CONTROLS.country.value = state.country;
+    state.countryAuto = true;
     setTab("all");
     window.scrollTo({ top: 0 });
   });
@@ -1118,19 +1156,21 @@ async function start() {
   state.detection = detectCountry(data.geo || {});
   state.country = state.detection.country || "";
 
-  // A bare visit opens on your own country; a link opens on exactly what it
-  // says. Applying the default to a link too would re-add a country filter that
-  // the sender had deliberately cleared before copying the URL.
-  //
-  // A guess with no venues - Norway, say - leaves the select on Anywhere, since
-  // the facets only list countries that have some. shownCountry() still falls
-  // back to it, so My Country can report "nothing listed there" honestly.
-  if (!location.search) CONTROLS.country.value = state.country;
-
   // An order the browser cannot produce should not be on the menu at all.
   if (!canLocate()) $("sort-distance")?.remove();
 
   const tab = restoreFromUrl();
+
+  // Applied after the URL has been read, because the URL is what decides
+  // whether it applies at all: a link naming a country wins, `country=any`
+  // means the sender deliberately widened it, and only a link that says
+  // nothing about countries gets the guess.
+  //
+  // A guess with no venues - Norway, say - leaves the select on Anywhere, since
+  // the facets only list countries that have some. shownCountry() still falls
+  // back to it, so My Country can report "nothing listed there" honestly.
+  if (state.countryAuto) CONTROLS.country.value = state.country;
+
   wire();
   // A shared link can arrive with filters already applied. Landing on a shut
   // panel would make the narrowed result set look like the whole dataset, so

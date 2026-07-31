@@ -237,10 +237,10 @@ def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
             failures.append(name)
 
     # --- the front page --------------------------------------------------- #
-    # A bare visit opens scoped to the country the browser's timezone implies,
-    # so the full list is reached with a query string - any query string
-    # suppresses that default, which is itself worth asserting below.
-    dom, stderr = render(chrome, base + "/?page=1")
+    # A bare visit opens scoped to the country the browser's timezone implies.
+    # `country=any` is the explicit way to say everywhere, and the only thing
+    # that survives a reload - absence of the parameter means "guess again".
+    dom, stderr = render(chrome, base + "/?country=any")
     errors = console_errors(stderr)
     assert_("no uncaught console errors", not errors, "; ".join(errors[:3]))
 
@@ -260,11 +260,13 @@ def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
     assert_("title is set", "FindMaxScreen" in dom)
     assert_("licence attribution present", "CC" in dom and "BY-SA" in dom)
 
-    # A link says exactly what it says; only a bare visit gets the local default.
+    # A link naming a country wins; a link saying nothing about countries gets
+    # the guess, which is what keeps the front page's own URL empty.
     bare, _ = render(chrome, base + "/")
     bare_cards = len(re.findall(r'<article class="venue', bare))
     assert_("a bare visit scopes to the visitor's country",
             0 < bare_cards < expected_venues, f"showed {bare_cards} of {expected_venues}")
+    assert_("the masthead is the way back to the start", 'id="home"' in bare)
     assert_("My Country answers the 15/70 question in All venues",
             "verdict-a" in bare and "15/70 mm film IMAX in" in bare)
 
