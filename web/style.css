@@ -282,7 +282,7 @@ a:hover { text-decoration-thickness: 2px; }
   border-bottom: 1px solid var(--rule);
 }
 
-.searchrow { display: flex; align-items: center; gap: 10px; }
+.searchrow { display: flex; align-items: center; gap: 10px; position: relative; }
 .searchicon {
   position: absolute;
   margin-left: 12px;
@@ -715,7 +715,22 @@ button.ghost.small .icon { font-size: 14px; }
   border-radius: 2px;
   cursor: pointer;
 }
-.citymenu button:hover { background: var(--hot-bg); color: var(--hot); }
+.citymenu button:hover,
+.citymenu button.on { background: var(--hot-bg); color: var(--hot); }
+
+/* The search box's completions: same menu, full input width, and each row
+   says which kind of thing it is - a name alone doesn't distinguish the
+   theatre called Melbourne from the city. */
+.searchmenu { width: 100%; }
+.citymenu button { display: flex; justify-content: space-between; gap: 12px; }
+.citymenu .kind {
+  flex: none;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted-flat);
+}
+.citymenu button:hover .kind,
+.citymenu button.on .kind { color: var(--hot); }
 
 /* Sits under the result count, where the reason for the order belongs. Same
    recessed italic as the "how we guessed" line in the Near me section, because

@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 
 import {
   fold, tokenize, index, search, countryReport, paginate, haversineKm,
-  cityIndex,
+  cityIndex, buildSuggestions, suggest,
 } from "./web/query.js";
 
 function venue(name, over = {}) {
@@ -315,4 +315,27 @@ test("a named city ranks exactly like a fix from that city", () => {
   const origin = cities.get("Paris, France");
   assert.deepEqual(near({ sort: "distance", origin }),
     ["Paris", "Edinburgh", "Sydney", "Nowhere"]);
+});
+
+/* ---------------------------------------------------------- suggestions */
+
+const ITEMS = buildSuggestions(FIXTURES, ["Canada", "Belgium", "Japan"]);
+
+test("suggestions cover countries, cities and theatres, without the removed", () => {
+  const labels = ITEMS.map((i) => i.label);
+  assert.ok(labels.includes("Canada"));
+  assert.ok(labels.includes("Vancouver, Canada"));
+  assert.ok(labels.includes("Dome 70"));
+  assert.ok(!labels.includes("Closed Cinema"));
+});
+
+test("suggest matches prefixes of any word, diacritics folded", () => {
+  assert.deepEqual(suggest(ITEMS, "vanc").map((i) => i.label), ["Vancouver, Canada"]);
+  assert.ok(suggest(ITEMS, "sao").map((i) => i.label).includes("S\u00e3o Paulo, Brazil"));
+  assert.deepEqual(suggest(ITEMS, ""), []);
+});
+
+test("suggest ranks label prefixes first, then places over theatres", () => {
+  const hits = suggest(ITEMS, "ca").map((i) => `${i.kind}:${i.label}`);
+  assert.equal(hits[0], "country:Canada");
 });

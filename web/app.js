@@ -7,6 +7,7 @@
 
 import {
   index, search, countryReport, paginate, cityIndex, fold, haversineKm,
+  buildSuggestions, suggest,
 } from "./query.js";
 import {
   detectCountry, storeCountry, explain,
@@ -1187,7 +1188,58 @@ function restoreFromUrl() {
   return TAB_ALIASES[tab] || tab;
 }
 
+/* Completions under the search box, drawn with the same menu the city picker
+ * uses. Everything offered is something the search would find - the ranking
+ * and matching live in query.js where they can be tested - and choosing one
+ * simply types it, so the ordinary filter path does the rest. */
+function wireSearchSuggest() {
+  const row = CONTROLS.q.parentElement;
+  const menu = el("ul", "citymenu searchmenu");
+  menu.hidden = true;
+  row.append(menu);
+  let active = -1;
+
+  const KIND_LABEL = { country: "Country", city: "City", theatre: "Theatre" };
+  const close = () => { menu.hidden = true; active = -1; };
+  const choose = (label) => { CONTROLS.q.value = label; close(); update(); };
+
+  CONTROLS.q.addEventListener("input", () => {
+    const rows = suggest(state.suggestions || [], CONTROLS.q.value);
+    active = -1;
+    menu.replaceChildren(...rows.map(({ label, kind }) => {
+      const li = el("li");
+      const b = el("button");
+      b.type = "button";
+      b.append(document.createTextNode(label), el("span", "kind", KIND_LABEL[kind]));
+      // mousedown, not click: it beats the input's blur, so the choice lands.
+      b.addEventListener("mousedown", (e) => { e.preventDefault(); choose(label); });
+      li.append(b);
+      return li;
+    }));
+    menu.hidden = rows.length === 0;
+  });
+
+  CONTROLS.q.addEventListener("keydown", (e) => {
+    if (menu.hidden) return;
+    const buttons = [...menu.querySelectorAll("button")];
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      active = (active + (e.key === "ArrowDown" ? 1 : -1) + buttons.length)
+        % buttons.length;
+      buttons.forEach((b, i) => b.classList.toggle("on", i === active));
+    } else if (e.key === "Enter") {
+      // Enter only picks something deliberately arrowed to. The box searches
+      // as you type, so a plain Enter just puts the menu away - completing to
+      // the top hit uninvited would yank the filter out from under the query.
+      if (active >= 0) { e.preventDefault(); choose(buttons[active].firstChild.textContent); }
+      else close();
+    } else if (e.key === "Escape") close();
+  });
+  CONTROLS.q.addEventListener("blur", close);
+}
+
 function wire() {
+  wireSearchSuggest();
   CONTROLS.q.addEventListener("input", debounce(update, 160));
   for (const key of ["projector", "ar"]) {
     CONTROLS[key].addEventListener("change", update);
@@ -1389,6 +1441,8 @@ async function start() {
 
   fillControls(data.facets);
   fillCities();
+  state.suggestions = buildSuggestions(
+    state.venues, data.facets.countries.map((c) => c.value));
 
   // A city named on an earlier visit is a standing answer to "where are you?",
   // so it comes back without being asked for - permission never enters into it.

@@ -202,6 +202,56 @@ export function cityIndex(venues) {
   return new Map([...map.entries()].sort((a, b) => COLLATOR.compare(a[0], b[0])));
 }
 
+/**
+ * Everything the search box can offer to complete: countries, cities and
+ * theatre names, folded once at build time so each keystroke is a scan of
+ * ~900 short strings rather than a re-fold of them.
+ */
+export function buildSuggestions(venues, countries = []) {
+  const seen = new Set();
+  const items = [];
+  const add = (label, kind) => {
+    const folded = fold(label);
+    const key = kind + ":" + folded;
+    if (!folded || seen.has(key)) return;
+    seen.add(key);
+    items.push({ label, kind, folded });
+  };
+  for (const c of countries) add(c, "country");
+  for (const v of venues) {
+    if (v.removed_at !== null) continue;
+    if (v.city) add([v.city, v.country].filter(Boolean).join(", "), "city");
+    add(v.name, "theatre");
+  }
+  return items;
+}
+
+/**
+ * The completions for what has been typed so far, best first.
+ *
+ * Matching mirrors matches() above - a prefix of the label, or a prefix of any
+ * word in it - so everything offered is something the search would actually
+ * find. Rank: whole-label prefixes beat mid-label hits, then places beat
+ * theatres (a typed "mum" is far more likely Mumbai than a mall multiplex),
+ * then the collator settles the rest.
+ */
+export function suggest(items, text, limit = 8) {
+  const q = fold(text.trim());
+  if (!q) return [];
+  const KIND_RANK = { country: 0, city: 1, theatre: 2 };
+  const hits = [];
+  for (const item of items) {
+    let quality;
+    if (item.folded.startsWith(q)) quality = 0;
+    else if (item.folded.includes(" " + q)) quality = 1;
+    else continue;
+    hits.push([quality, KIND_RANK[item.kind], item]);
+  }
+  hits.sort((a, b) => a[0] - b[0] || a[1] - b[1]
+    || COLLATOR.compare(a[2].label, b[2].label));
+  return hits.slice(0, limit).map((h) => h[2]);
+}
+
 /** Per-country tallies, used by the "is there one near me?" verdict. */
 export function countryReport(venues, country) {
   const live = venues.filter((v) => v.removed_at === null);
