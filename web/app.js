@@ -43,8 +43,19 @@ const TAB_ALIASES = { country: "nearme", film70: "all" };
  * than reaching for the attribute, which is how the old `.checked` calls stayed
  * consistent across eight call sites. */
 /* Every way a position request can end badly. Kept in one place because the
- * two callers below both have to agree about what "it failed" means. */
+ * callers below all have to agree about what "it failed" means. */
 const GEO_FAILURES = ["denied", "unavailable", "timeout", "unsupported"];
+
+/* The subset worth giving up on.
+ *
+ * A refusal is remembered by the browser and a missing API will not appear, so
+ * asking again shows the visitor nothing and spins forever. The other two are
+ * weather: POSITION_UNAVAILABLE is what a Mac returns when Wi-Fi scanning
+ * momentarily has nothing to go on, and a timeout is just a slow fix. Treating
+ * those as final meant one hiccup jammed the section for the rest of the visit
+ * and only a hunt for the Try again button got it back - and since permission
+ * has already been granted by then, re-asking costs no prompt at all. */
+const GEO_FINAL = ["denied", "unsupported"];
 
 const isOn = (el) => el.getAttribute("aria-checked") === "true";
 const setOn = (el, on) => el.setAttribute("aria-checked", String(Boolean(on)));
@@ -626,15 +637,21 @@ function nearMeBanner() {
     : "This section ranks all 476 venues by how far they are from you. Your "
       + "browser will ask before sharing anything."));
 
+  // Which failure, said here rather than only in the line under the result
+  // count. That line sits below the search box and the filters, far enough from
+  // this box that "it didn't work" and "here is why" read as unrelated - and
+  // the why is the difference between checking a setting and giving up.
   if (failed) {
+    box.append(el("p", "how", explainPosition(state.geoStatus, state.geoAccuracy)));
+  }
+
+  if (failed && state.geoStatus !== "unsupported") {
     const wrap = el("div", "cta");
-    wrap.append(el("span", "cta-q", "Changed your mind?"));
+    wrap.append(el("span", "cta-q",
+      state.geoStatus === "denied" ? "Changed your mind?" : "Worth another go?"));
     const button = el("button", "ghost small");
     button.type = "button";
     button.append(icon("pin"), document.createTextNode("Try again"));
-    // A denial is remembered by the browser, so this only gets anywhere after
-    // the visitor has reset it in site settings. Offering it anyway beats a
-    // dead end; refusing to re-ask on our own is what stops it being a nag.
     button.addEventListener("click", () => { state.geoStatus = "idle"; requestPosition(); });
     wrap.append(button);
     box.append(wrap);
@@ -867,7 +884,7 @@ function setCountry(country, { remember = true } = {}) {
  */
 function locateForNearMe() {
   if (!canLocate() || state.origin) return;
-  if (state.geoStatus === "locating" || GEO_FAILURES.includes(state.geoStatus)) return;
+  if (state.geoStatus === "locating" || GEO_FINAL.includes(state.geoStatus)) return;
   requestPosition();
 }
 

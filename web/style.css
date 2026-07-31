@@ -335,7 +335,10 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   color: var(--muted-flat);
   background: transparent;
   border: 1px solid var(--rule);
-  border-radius: 2px;
+  /* The one place the hairline-and-2px house style gives way. Everything else
+     here is a rule or a panel edge; these are the only things meant to be
+     pressed, and the rounding is what says so at a glance. */
+  border-radius: 9px;
   cursor: pointer;
   user-select: none;
 }
@@ -370,7 +373,7 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
 .toggle.big {
   padding: 10px 18px;
   font-size: 15px;
-  border-radius: 3px;
+  border-radius: 11px;
 }
 .quickcountry {
   display: flex;
