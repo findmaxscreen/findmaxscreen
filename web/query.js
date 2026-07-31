@@ -183,6 +183,25 @@ export function paginate(total, page, size) {
   };
 }
 
+/**
+ * Every city we can measure from, as "City, Country" -> {lat, lon}.
+ *
+ * This is the answer to "the device cannot say where you are": the visitor
+ * names a city instead, and a city centroid is honestly all the precision the
+ * distance ranking ever claims - half the venues are only mapped to their
+ * city to begin with. First venue with coordinates wins; the handful of
+ * coordinate-less venues contribute nothing to measure from.
+ */
+export function cityIndex(venues) {
+  const map = new Map();
+  for (const v of venues) {
+    if (v.lat == null || v.lon == null || !v.city) continue;
+    const label = [v.city, v.country].filter(Boolean).join(", ");
+    if (!map.has(label)) map.set(label, { lat: v.lat, lon: v.lon });
+  }
+  return new Map([...map.entries()].sort((a, b) => COLLATOR.compare(a[0], b[0])));
+}
+
 /** Per-country tallies, used by the "is there one near me?" verdict. */
 export function countryReport(venues, country) {
   const live = venues.filter((v) => v.removed_at === null);

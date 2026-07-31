@@ -329,6 +329,13 @@ def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
             "distance labels rendered with no position granted")
     assert_("Near me asks rather than pretending",
             "Where are you?" in near or "ranks all" in near)
+    # The escape hatch for a device that cannot produce a fix at all: the
+    # visitor can name a city, and the typeahead must be there to name it in.
+    has_city_input = 'list="cities"' in near
+    n_city_options = near.count("<option")
+    assert_("Near me offers the name-your-city fallback",
+            has_city_input and n_city_options > 300,
+            f"input present: {has_city_input}, options: {n_city_options}")
 
     # --- reporting, which is only present once a repo is configured ------- #
     # Reporting lives in the footer, not on every card: 476 copies of a link

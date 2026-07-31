@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 
 import {
   fold, tokenize, index, search, countryReport, paginate, haversineKm,
+  cityIndex,
 } from "./web/query.js";
 
 function venue(name, over = {}) {
@@ -296,4 +297,22 @@ test("distance sort leaves the total alone", () => {
   const result = search(GEO, { sort: "distance", origin: LONDON });
   assert.equal(result.total, 4);
   assert.equal(result.shown, 4);
+});
+
+test("cityIndex maps each city once, alphabetically, skipping the unmapped", () => {
+  const cities = cityIndex(GEO.concat(index([
+    venue("Second Paris venue", { country: "France", city: "Paris", lat: 48.9, lon: 2.4 }),
+  ])));
+  // "Nowhere" has no coordinates, so Bangkok cannot be measured from.
+  assert.deepEqual([...cities.keys()],
+    ["Edinburgh, UK", "Paris, France", "Sydney, Australia"]);
+  // First venue with coordinates wins; the duplicate does not overwrite it.
+  assert.equal(cities.get("Paris, France").lat, 48.8566);
+});
+
+test("a named city ranks exactly like a fix from that city", () => {
+  const cities = cityIndex(GEO);
+  const origin = cities.get("Paris, France");
+  assert.deepEqual(near({ sort: "distance", origin }),
+    ["Paris", "Edinburgh", "Sydney", "Nowhere"]);
 });

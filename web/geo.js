@@ -116,6 +116,29 @@ export function readStored() {
   }
 }
 
+/* A named city gets the same treatment as a chosen country, and for the same
+ * reason: it is coarse and the visitor said it out loud. What stays out of
+ * storage is a measured lat/lon - the line is detected versus declared, not
+ * geographic versus not. */
+const CITY_KEY = "city";
+
+export function readStoredCity() {
+  try {
+    return localStorage.getItem(CITY_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function storeCity(name) {
+  try {
+    if (name) localStorage.setItem(CITY_KEY, name);
+    else localStorage.removeItem(CITY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function storeCountry(country) {
   try {
     if (country) localStorage.setItem(STORAGE_KEY, country);

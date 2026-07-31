@@ -667,6 +667,20 @@ button.ghost.small .icon { font-size: 14px; }
   white-space: nowrap;
 }
 
+/* Typed into, so square, per the by-role rounding rule - but sized to sit
+   comfortably in the verdict box's CTA row beside rounded buttons. */
+.citypick {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  min-width: 200px;
+}
+.citypick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* Sits under the result count, where the reason for the order belongs. Same
    recessed italic as the "how we guessed" line in the Near me section, because
    it is the same kind of remark. */

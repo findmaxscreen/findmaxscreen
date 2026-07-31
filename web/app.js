@@ -5,10 +5,11 @@
  * refresh tooling lives in admin.html, which is never published.
  */
 
-import { index, search, countryReport, paginate } from "./query.js";
+import { index, search, countryReport, paginate, cityIndex } from "./query.js";
 import {
   detectCountry, storeCountry, explain,
   canLocate, locate, permissionState, explainPosition,
+  storeCity, readStoredCity,
 } from "./geo.js";
 
 const $ = (id) => document.getElementById(id);
@@ -38,10 +39,6 @@ const TABS = ["all", "nearme", "types"];
  * now lives in a section of All venues that they will scroll straight past. */
 const TAB_ALIASES = { country: "nearme", film70: "all" };
 
-/* The filter toggles are buttons, not checkboxes, so `checked` is not a thing
- * they have. Everything reads and writes their state through these two rather
- * than reaching for the attribute, which is how the old `.checked` calls stayed
- * consistent across eight call sites. */
 /* Every way a position request can end badly. Kept in one place because the
  * callers below all have to agree about what "it failed" means. */
 const GEO_FAILURES = ["denied", "unavailable", "timeout", "unsupported"];
@@ -57,6 +54,10 @@ const GEO_FAILURES = ["denied", "unavailable", "timeout", "unsupported"];
  * has already been granted by then, re-asking costs no prompt at all. */
 const GEO_FINAL = ["denied", "unsupported"];
 
+/* The filter toggles are buttons, not checkboxes, so `checked` is not a thing
+ * they have. Everything reads and writes their state through these two rather
+ * than reaching for the attribute, which is how the old `.checked` calls stayed
+ * consistent across eight call sites. */
 const isOn = (el) => el.getAttribute("aria-checked") === "true";
 const setOn = (el, on) => el.setAttribute("aria-checked", String(Boolean(on)));
 
@@ -87,6 +88,10 @@ const state = {
   // A precise fix, once the visitor has offered one. Memory only, never
   // localStorage - see the note in geo.js about why a lat/lon is not a country.
   origin: null,
+  // Set when the origin is a city the visitor named rather than a measured
+  // position; geoStatus is "manual" whenever this is the origin in use.
+  originCity: "",
+  cities: null,
   geoStatus: "idle",
   geoAccuracy: 0,
 };
@@ -609,21 +614,31 @@ function film70Cta(report, country) {
 function nearMeBanner() {
   const box = el("div", "verdict");
 
-  if (!canLocate()) {
-    box.append(el("p", "verdict-q", "This browser won't share a location"));
-    box.append(el("p", null,
-      "Ranking by distance needs one. Every venue is still listed under All "
-      + "venues, and the country filter will narrow it."));
+  if (state.origin) {
+    box.classList.add("yes");
+    if (state.geoStatus === "manual") {
+      box.append(el("p", "verdict-q", `Nearest to ${state.originCity}`));
+      box.append(el("p", null,
+        "Distances are measured from the middle of the city you named, as "
+        + "straight lines. Name a different one below if that is wrong."));
+      box.append(cityPicker());
+      if (canLocate()) box.append(preciseCta());
+    } else {
+      box.append(el("p", "verdict-q", "Nearest first"));
+      box.append(el("p", null,
+        "Every venue on earth, closest to you at the top. Distances are "
+        + "straight lines, and about half these theatres are mapped to their "
+        + "city rather than their door."));
+    }
     return box;
   }
 
-  if (state.origin) {
-    box.classList.add("yes");
-    box.append(el("p", "verdict-q", "Nearest first"));
+  if (!canLocate()) {
+    box.append(el("p", "verdict-q", "This browser won't share a location"));
     box.append(el("p", null,
-      "Every venue on earth, closest to you at the top. Distances are "
-      + "straight lines, and about half these theatres are mapped to their "
-      + "city rather than their door."));
+      "Ranking by distance needs to know where you are - but you can just "
+      + "say so instead."));
+    box.append(cityPicker());
     return box;
   }
 
@@ -656,7 +671,66 @@ function nearMeBanner() {
     wrap.append(button);
     box.append(wrap);
   }
+
+  // The device is not the only thing that knows where the visitor is - the
+  // visitor does. Offered in every state short of an answered one, because a
+  // machine that cannot produce a fix (an access point Apple has never heard
+  // of, say) fails identically forever, and a dead end here means the whole
+  // section never works for that person at all.
+  if (state.geoStatus !== "locating") box.append(cityPicker());
   return box;
+}
+
+/* A typeahead over every city the data can measure from. A named city becomes
+ * the origin exactly as a fix would, at the only precision the ranking ever
+ * claims - half the venues are mapped to their city centre anyway. */
+function cityPicker() {
+  const wrap = el("div", "cta");
+  const lbl = el("label", "cta-q");
+  lbl.append(document.createTextNode("Or name your city:\u00a0"));
+  const input = el("input", "citypick");
+  input.type = "text";
+  input.placeholder = "Start typing\u2026";
+  input.setAttribute("list", "cities");
+  input.addEventListener("change", () => {
+    if (setManualOrigin(input.value.trim())) input.value = "";
+  });
+  lbl.append(input);
+  wrap.append(lbl);
+  return wrap;
+}
+
+function preciseCta() {
+  const wrap = el("div", "cta");
+  wrap.append(el("span", "cta-q", "Got a location after all?"));
+  const button = el("button", "ghost small");
+  button.type = "button";
+  button.append(icon("pin"), document.createTextNode("Use my actual position"));
+  button.addEventListener("click", () => { state.geoStatus = "idle"; requestPosition(); });
+  wrap.append(button);
+  return wrap;
+}
+
+/* Make a named city the origin. Returns false when the name matches nothing,
+ * so the caller can leave the input standing for another go. */
+function setManualOrigin(label) {
+  if (!label || !state.cities) return false;
+  let hit = state.cities.get(label);
+  if (!hit) {
+    // The datalist suggests exact labels, but typed input deserves a forgiving
+    // match: "mumbai" should find "Mumbai, India".
+    const folded = label.toLowerCase();
+    for (const [name, coords] of state.cities) {
+      if (name.toLowerCase().startsWith(folded)) { label = name; hit = coords; break; }
+    }
+  }
+  if (!hit) return false;
+  state.origin = { lat: hit.lat, lon: hit.lon };
+  state.originCity = label;
+  storeCity(label);
+  setGeoStatus("manual");
+  update();
+  return true;
 }
 
 function renderBanner() {
@@ -831,6 +905,12 @@ function fillFilmSelect(select, rows, total70) {
   select.append(group);
 }
 
+function fillCities() {
+  state.cities = cityIndex(state.venues);
+  const list = $("cities");
+  for (const name of state.cities.keys()) list.append(option(name, name));
+}
+
 function fillControls(facets) {
   fillSimple(CONTROLS.country, facets.countries);
   fillSimple(CONTROLS.projector, byCount(facets.projectors), DIGITAL_LABELS);
@@ -900,6 +980,10 @@ async function requestPosition() {
     update();
     return true;
   } catch (err) {
+    // A named city outranks no answer at all: if the visitor has told us where
+    // they are, a failed measurement falls back to that rather than to an
+    // unranked list.
+    if (state.originCity && setManualOrigin(state.originCity)) return false;
     state.origin = null;
     setGeoStatus(err.code || "unavailable");
     // Leave the control saying what the list actually does.
@@ -923,7 +1007,7 @@ async function requestPosition() {
  */
 async function restorePosition() {
   const wanted = CONTROLS.sort.value === "distance" || state.tab === "nearme";
-  if (!wanted) return;
+  if (!wanted || state.origin) return;
 
   if (!canLocate() || await permissionState() !== "granted") {
     if (CONTROLS.sort.value === "distance") {
@@ -945,9 +1029,14 @@ function setGeoStatus(status) {
  * count, which is where someone looking at the rows themselves will be. */
 function renderGeoStatus() {
   const box = $("geostatus");
-  const text = state.tab === "nearme" || state.origin
+  let text = state.tab === "nearme" || state.origin
     ? explainPosition(state.geoStatus, state.geoAccuracy)
     : "";
+  if (state.geoStatus === "manual" && state.origin
+      && (state.tab === "nearme" || CONTROLS.sort.value === "distance")) {
+    text = `Distances measured from ${state.originCity} \u2014 a city you named, `
+      + "not a detected position. Nothing was stored but the name.";
+  }
   box.textContent = text;
   box.hidden = !text;
 }
@@ -1173,6 +1262,17 @@ async function start() {
     : "No revision recorded";
 
   fillControls(data.facets);
+  fillCities();
+
+  // A city named on an earlier visit is a standing answer to "where are you?",
+  // so it comes back without being asked for - permission never enters into it.
+  const rememberedCity = readStoredCity();
+  if (rememberedCity && state.cities.has(rememberedCity)) {
+    const coords = state.cities.get(rememberedCity);
+    state.origin = { lat: coords.lat, lon: coords.lon };
+    state.originCity = rememberedCity;
+    state.geoStatus = "manual";
+  }
 
   state.detection = detectCountry(data.geo || {});
   state.country = state.detection.country || "";
