@@ -11,7 +11,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { fold, tokenize, index, search, countryReport, paginate } from "./web/query.js";
+import {
+  fold, tokenize, index, search, countryReport, paginate, haversineKm,
+  cityIndex, buildSuggestions, suggest,
+} from "./web/query.js";
 
 function venue(name, over = {}) {
   return {
@@ -155,15 +158,6 @@ test("location sort groups by country then city", () => {
   assert.deepEqual(countries, [...countries].sort());
 });
 
-test("relevance prefers a name hit over a place hit", () => {
-  const rows = search(FIXTURES, { q: "dome", sort: "relevance" }).venues;
-  assert.equal(rows[0].name, "Dome 70");
-});
-
-test("relevance falls back to location when there is no query", () => {
-  assert.deepEqual(names({ sort: "relevance" }), names({ sort: "location" }));
-});
-
 test("an unknown sort does not throw", () => {
   assert.deepEqual(names({ sort: "nonsense" }), names({ sort: "location" }));
 });
@@ -242,4 +236,106 @@ test("a country with no venues at all reports zeroes", () => {
   assert.equal(nowhere.venues, 0);
   assert.equal(nowhere.film70, 0);
   assert.equal(nowhere.region, null);
+});
+
+/* ------------------------------------------------------------- distance
+ *
+ * The "Nearest first" sort. The interesting cases are not the arithmetic but
+ * what happens when the inputs are missing: 29 real venues have no coordinates
+ * at all, and the sort can be selected before - or without ever - a position
+ * being granted.
+ */
+
+const LONDON = { lat: 51.5074, lon: -0.1278 };
+
+const GEO = index([
+  venue("Paris", { country: "France", city: "Paris", lat: 48.8566, lon: 2.3522 }),
+  venue("Edinburgh", { country: "UK", city: "Edinburgh", lat: 55.9533, lon: -3.1883 }),
+  venue("Sydney", { country: "Australia", city: "Sydney", lat: -33.8688, lon: 151.2093 }),
+  venue("Nowhere", { country: "Thailand", city: "Bangkok", lat: null, lon: null }),
+]);
+
+const near = (criteria) => search(GEO, criteria).venues.map((v) => v.name);
+
+test("haversine matches a known distance", () => {
+  // London to Paris is ~344 km; agreeing to the kilometre is plenty.
+  assert.ok(Math.abs(haversineKm(51.5074, -0.1278, 48.8566, 2.3522) - 344) < 1);
+  assert.equal(haversineKm(10, 20, 10, 20), 0);
+});
+
+test("distance sort orders by proximity to the origin", () => {
+  assert.deepEqual(near({ sort: "distance", origin: LONDON }),
+    ["Paris", "Edinburgh", "Sydney", "Nowhere"]);
+});
+
+test("distance sort follows the origin rather than the alphabet", () => {
+  // From Sydney the order reverses; alphabetical order would not have moved.
+  assert.deepEqual(near({ sort: "distance", origin: { lat: -33.8688, lon: 151.2093 } }),
+    ["Sydney", "Edinburgh", "Paris", "Nowhere"]);
+});
+
+test("venues with no coordinates sort last, not as distance zero", () => {
+  const rows = search(GEO, { sort: "distance", origin: LONDON }).venues;
+  assert.equal(rows.at(-1).name, "Nowhere");
+  assert.equal(rows.at(-1)._km, null);
+});
+
+test("distance falls back to location order without an origin", () => {
+  // A shared ?sort=distance link, or a refused prompt: the list still has to
+  // come out in a defensible order.
+  assert.deepEqual(near({ sort: "distance" }),
+    near({ sort: "location" }));
+});
+
+test("distance measures only the rows that survived the filters", () => {
+  const result = search(GEO, { sort: "distance", origin: LONDON, country: "France" });
+  assert.deepEqual(result.venues.map((v) => v.name), ["Paris"]);
+  assert.ok(Math.abs(result.venues[0]._km - 344) < 1);
+});
+
+test("distance sort leaves the total alone", () => {
+  const result = search(GEO, { sort: "distance", origin: LONDON });
+  assert.equal(result.total, 4);
+  assert.equal(result.shown, 4);
+});
+
+test("cityIndex maps each city once, alphabetically, skipping the unmapped", () => {
+  const cities = cityIndex(GEO.concat(index([
+    venue("Second Paris venue", { country: "France", city: "Paris", lat: 48.9, lon: 2.4 }),
+  ])));
+  // "Nowhere" has no coordinates, so Bangkok cannot be measured from.
+  assert.deepEqual([...cities.keys()],
+    ["Edinburgh, UK", "Paris, France", "Sydney, Australia"]);
+  // First venue with coordinates wins; the duplicate does not overwrite it.
+  assert.equal(cities.get("Paris, France").lat, 48.8566);
+});
+
+test("a named city ranks exactly like a fix from that city", () => {
+  const cities = cityIndex(GEO);
+  const origin = cities.get("Paris, France");
+  assert.deepEqual(near({ sort: "distance", origin }),
+    ["Paris", "Edinburgh", "Sydney", "Nowhere"]);
+});
+
+/* ---------------------------------------------------------- suggestions */
+
+const ITEMS = buildSuggestions(FIXTURES, ["Canada", "Belgium", "Japan"]);
+
+test("suggestions cover countries, cities and theatres, without the removed", () => {
+  const labels = ITEMS.map((i) => i.label);
+  assert.ok(labels.includes("Canada"));
+  assert.ok(labels.includes("Vancouver, Canada"));
+  assert.ok(labels.includes("Dome 70"));
+  assert.ok(!labels.includes("Closed Cinema"));
+});
+
+test("suggest matches prefixes of any word, diacritics folded", () => {
+  assert.deepEqual(suggest(ITEMS, "vanc").map((i) => i.label), ["Vancouver, Canada"]);
+  assert.ok(suggest(ITEMS, "sao").map((i) => i.label).includes("S\u00e3o Paulo, Brazil"));
+  assert.deepEqual(suggest(ITEMS, ""), []);
+});
+
+test("suggest ranks label prefixes first, then places over theatres", () => {
+  const hits = suggest(ITEMS, "ca").map((i) => `${i.kind}:${i.label}`);
+  assert.equal(hits[0], "country:Canada");
 });

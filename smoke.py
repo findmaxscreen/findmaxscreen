@@ -30,7 +30,7 @@ import shutil
 import socket
 import subprocess
 import sys
-
+import tempfile
 import threading
 import time
 from contextlib import contextmanager
@@ -76,6 +76,57 @@ def find_chrome() -> str:
         "browser-actions/setup-chrome; locally install Google Chrome.")
 
 
+# A position Chrome will never volunteer. Headless has no way to answer a
+# permission prompt and no flag to grant one, and driving CDP to override the
+# geolocation would be a devtools client this file otherwise does not need. So
+# the API is replaced before app.js loads, in a throwaway copy of the build.
+#
+# This tests our handling of a fix, not the browser's ability to produce one -
+# which is the half that has actually been wrong. "Near me" once ranked by the
+# alphabet and called it distance, and every unit test passed while it did.
+LONDON_STUB = """<script>
+navigator.geolocation.getCurrentPosition = (ok) => ok({
+  coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 1200 } });
+navigator.permissions.query = async () => ({ state: "granted" });
+</script>
+"""
+
+# The macOS failure shape: the one-shot answers kCLErrorLocationUnknown
+# immediately, but a watch produces a fix once the provider has warmed up.
+# geo.js must fall back from the first to the second, or a Mac that could
+# locate itself in five seconds reports that it cannot at all.
+FLAKY_STUB = """<script>
+navigator.geolocation.getCurrentPosition = (ok, fail) =>
+  fail({ code: 2, message: "kCLErrorLocationUnknown" });
+navigator.geolocation.watchPosition = (ok) => {
+  setTimeout(() => ok({
+    coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 1200 } }), 300);
+  return 1;
+};
+navigator.geolocation.clearWatch = () => {};
+navigator.permissions.query = async () => ({ state: "granted" });
+</script>
+"""
+
+MODULE_TAG = '<script type="module" src="app.js"></script>'
+
+
+@contextmanager
+def located(dist: Path, stub: str = LONDON_STUB):
+    """Serve a copy of `dist` whose browser always reports it is in London."""
+    with tempfile.TemporaryDirectory() as tmp:
+        site = Path(tmp) / "site"
+        shutil.copytree(dist, site)
+        page = site / "index.html"
+        html = page.read_text()
+        if MODULE_TAG not in html:
+            raise SystemExit("smoke: index.html no longer loads app.js as a "
+                             "module; the geolocation stub cannot be injected")
+        page.write_text(html.replace(MODULE_TAG, stub + MODULE_TAG))
+        with serving(site) as base:
+            yield base
+
+
 @contextmanager
 def serving(directory: Path):
     """Serve `directory` on a free port, and always shut it down."""
@@ -84,6 +135,16 @@ def serving(directory: Path):
         # on a functools.partial does nothing, so the request log kept printing.
         def log_message(self, *args):
             pass
+
+        # SimpleHTTPRequestHandler sends Last-Modified and nothing else, so a
+        # browser is free to apply heuristic freshness and keep serving app.js
+        # from an earlier build. That cost an afternoon once: a bug had been
+        # fixed, the page kept the old behaviour, and the hunt went looking at
+        # the operating system. --keep-open hands this server to a human, so it
+        # has to be honest about freshness. serve.py already does the same.
+        def end_headers(self):
+            self.send_header("Cache-Control", "no-store, must-revalidate")
+            super().end_headers()
 
     handler = partial(Quiet, directory=str(directory))
     # Port 0: the kernel picks one and the server holds it atomically. Probing
@@ -156,6 +217,45 @@ def check(name: str, condition: bool, detail: str = "") -> bool:
     return condition
 
 
+def check_located(chrome: str, base: str, tag: str = "located") -> list[str]:
+    """The half of Near me that needs a position: run against `located()`."""
+    failures: list[str] = []
+
+    def assert_(name: str, condition: bool, detail: str = ""):
+        if not check(name, condition, detail):
+            failures.append(name)
+
+    dom, stderr = render(chrome, f"{base}/?tab=nearme")
+    errors = console_errors(stderr)
+    assert_(f"{tag}: no console errors", not errors, "; ".join(errors[:2]))
+
+    away = re.findall(r'class="away"[^>]*>([^<]+)<', dom)
+    assert_(f"{tag}: distances are shown", len(away) > 0)
+
+    names = re.findall(r"<h3>([^<]+)</h3>", dom)
+    assert_(f"{tag}: the nearest venue is first",
+            bool(names) and "BFI IMAX" in names[0],
+            f"first card is {names[0] if names else 'missing'!r}, expected the BFI")
+
+    # Ascending, and read as numbers: "< 1 km" sorts before "25 km" as text too,
+    # but "9 km" would not, and that is exactly the bug worth catching.
+    def km(text: str) -> float:
+        # "< 1 km" arrives from --dump-dom as "&lt; 1 km".
+        text = text.replace("&lt;", "<").strip()
+        return 0.5 if text.startswith("<") else float(text.split()[0].replace(",", ""))
+
+    values = [km(a) for a in away]
+    assert_(f"{tag}: distances ascend down the page", values == sorted(values),
+            f"first five: {values[:5]}")
+
+    # The country pin has to come off, or "nearest" means "nearest in the
+    # country the browser guessed" - which is how Delhi outranked Mumbai.
+    countries = set(re.findall(r'class="where">.*?</svg>[^<]*?([A-Z][^<,]*)<', dom))
+    assert_(f"{tag}: ranking is worldwide, not pinned to one country",
+            len(countries) > 1 or len(away) < 25, f"countries on page one: {countries}")
+    return failures
+
+
 def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
     failures: list[str] = []
 
@@ -164,7 +264,10 @@ def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
             failures.append(name)
 
     # --- the front page --------------------------------------------------- #
-    dom, stderr = render(chrome, base + "/")
+    # A bare visit opens scoped to the country the browser's timezone implies.
+    # `country=any` is the explicit way to say everywhere, and the only thing
+    # that survives a reload - absence of the parameter means "guess again".
+    dom, stderr = render(chrome, base + "/?country=any")
     errors = console_errors(stderr)
     assert_("no uncaught console errors", not errors, "; ".join(errors[:3]))
 
@@ -179,15 +282,24 @@ def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
                 str(expected_venues) in pager.group(1),
                 f"pager says {pager.group(1)!r}, data has {expected_venues}")
 
-    assert_("tab bar rendered", dom.count("data-tab=") == 4,
+    assert_("tab bar rendered", dom.count("data-tab=") == 3,
             f"found {dom.count('data-tab=')} tabs")
     assert_("title is set", "FindMaxScreen" in dom)
     assert_("licence attribution present", "CC" in dom and "BY-SA" in dom)
 
+    # A link naming a country wins; a link saying nothing about countries gets
+    # the guess, which is what keeps the front page's own URL empty.
+    bare, _ = render(chrome, base + "/")
+    bare_cards = len(re.findall(r'<article class="venue', bare))
+    assert_("a bare visit scopes to the visitor's country",
+            0 < bare_cards < expected_venues, f"showed {bare_cards} of {expected_venues}")
+    assert_("the masthead is the way back to the start", 'id="home"' in bare)
+    assert_("My Country answers the 15/70 question in All venues",
+            "verdict-a" in bare and "15/70 mm film IMAX in" in bare)
+
     # --- the sections ----------------------------------------------------- #
     for tab, marker, label in (
-        ("country", "verdict", "your-country section renders its banner"),
-        ("film70", "verdict-a", "70 mm section renders its verdict"),
+        ("nearme", "verdict", "Near me section renders its banner"),
         ("types", "typeshead", "IMAX types section renders the guide"),
     ):
         tab_dom, tab_err = render(chrome, f"{base}/?tab={tab}")
@@ -195,6 +307,33 @@ def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
         assert_(f"{tab}: no console errors", not tab_errors,
                 "; ".join(tab_errors[:2]))
         assert_(label, marker in tab_dom)
+
+    # Links shared before the sections were reorganised must still land
+    # somewhere deliberate rather than silently falling through to All venues.
+    for old, expect in (("country", "nearme"), ("film70", "all")):
+        aliased, _ = render(chrome, f"{base}/?tab={old}")
+        on = re.search(r'data-tab="([a-z0-9]+)"[^>]*class="on"', aliased) \
+            or re.search(r'data-tab="([a-z0-9]+)"[^>]*aria-selected="true"', aliased)
+        assert_(f"?tab={old} still lands on {expect}",
+                on is not None and on.group(1) == expect,
+                f"landed on {on.group(1) if on else 'nothing'}")
+
+    # --- Near me, which must never pass the alphabet off as distance ------ #
+    # Headless grants no permission, so this is the state every first-time
+    # visitor is in. The bug this guards against shipped with 21 green checks:
+    # the section showed Delhi above Mumbai to a reader in Mumbai, in country
+    # order, under a heading promising proximity.
+    near, _ = render(chrome, f"{base}/?tab=nearme")
+    assert_("Near me claims no distance without a position",
+            'class="away"' not in near,
+            "distance labels rendered with no position granted")
+    assert_("Near me asks rather than pretending",
+            "Where are you?" in near or "ranks all" in near)
+    # The escape hatch for a device that cannot produce a fix at all: the
+    # visitor can name a city, and the typeahead must be there to name it in.
+    # (The menu itself is built per keystroke, so only the input is in the DOM.)
+    assert_("Near me offers the name-your-city fallback",
+            'class="citypick"' in near)
 
     # --- reporting, which is only present once a repo is configured ------- #
     # Reporting lives in the footer, not on every card: 476 copies of a link
@@ -243,7 +382,21 @@ def main(argv: list[str] | None = None) -> int:
     started = time.monotonic()
     with serving(args.dist) as base:
         failures = run_checks(chrome, base, expected)
-        if args.keep_open:
+
+    # A second server, over a copy of the build with the geolocation stubbed.
+    # Separate because the stub must not be in the directory --keep-open hands
+    # to a human: it would look like the real site and lie about where they are.
+    with located(args.dist) as base:
+        failures += check_located(chrome, base)
+
+    # And a third, simulating the macOS failure: the one-shot ask fails with
+    # code 2, and only a watch produces the fix. Same assertions must pass -
+    # the visitor should never be able to tell which path delivered.
+    with located(args.dist, stub=FLAKY_STUB) as base:
+        failures += check_located(chrome, base, tag="flaky provider")
+
+    if args.keep_open:
+        with serving(args.dist) as base:
             print(f"\nserving {base} — ctrl-c to stop")
             try:
                 while True:

@@ -5,8 +5,15 @@
  * refresh tooling lives in admin.html, which is never published.
  */
 
-import { index, search, countryReport, paginate } from "./query.js";
-import { detectCountry, storeCountry, explain, regionName } from "./geo.js";
+import {
+  index, search, countryReport, paginate, cityIndex, fold, haversineKm,
+  buildSuggestions, suggest,
+} from "./query.js";
+import {
+  detectCountry, storeCountry, explain,
+  canLocate, locate, permissionState, explainPosition,
+  storeCity, readStoredCity,
+} from "./geo.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -27,7 +34,37 @@ const results = $("results");
 const countEl = $("count");
 const banner = $("banner");
 
-const TABS = ["all", "country", "film70", "types"];
+const TABS = ["all", "nearme", "types"];
+
+/* Links shared before the sections were reorganised carry these. "country" was
+ * the tab that answered both "what is in my country" and, briefly and badly,
+ * "what is near me"; the second is what its visitors were after, and the first
+ * now lives in a section of All venues that they will scroll straight past. */
+const TAB_ALIASES = { country: "nearme", film70: "all" };
+
+/* Every way a position request can end badly. Kept in one place because the
+ * callers below all have to agree about what "it failed" means. */
+const GEO_FAILURES = ["denied", "unavailable", "timeout", "unsupported"];
+
+/* The subset worth giving up on.
+ *
+ * A refusal is remembered by the browser and a missing API will not appear, so
+ * asking again shows the visitor nothing and spins forever. The other two are
+ * weather: POSITION_UNAVAILABLE is what a Mac returns when Wi-Fi scanning
+ * momentarily has nothing to go on, and a timeout is just a slow fix. Treating
+ * those as final meant one hiccup jammed the section for the rest of the visit
+ * and only a hunt for the Try again button got it back - and since permission
+ * has already been granted by then, re-asking costs no prompt at all. */
+const GEO_FINAL = ["denied", "unsupported"];
+
+/* The filter toggles are buttons, not checkboxes, so `checked` is not a thing
+ * they have. Everything reads and writes their state through these two rather
+ * than reaching for the attribute, which is how the old `.checked` calls stayed
+ * consistent across eight call sites. */
+const isOn = (el) => el.getAttribute("aria-checked") === "true";
+const setOn = (el, on) => el.setAttribute("aria-checked", String(Boolean(on)));
+
+const TOGGLES = ["film70", "dome", "commercial", "include_removed"];
 
 // 476 rows in one scroll is a wall. Enough per page to be worth a scroll,
 // few enough that the end is always in sight.
@@ -43,6 +80,25 @@ const state = {
   // filter bar, so it surfaces as a removable chip instead.
   region: "",
   page: 1,
+  /* True while the country filter holds the guess rather than a choice.
+   *
+   * It is what keeps the front page's URL empty: an automatic country is not
+   * something the visitor did, so it does not belong in a link. The corollary
+   * is that a URL with no `country` gets the default applied on arrival, which
+   * is why clearing the filter deliberately writes `country=any` - otherwise a
+   * reload of "everywhere" would come back scoped to wherever you are. */
+  countryAuto: false,
+  // A precise fix, once the visitor has offered one. Memory only, never
+  // localStorage - see the note in geo.js about why a lat/lon is not a country.
+  origin: null,
+  // Set when the origin is a city the visitor named rather than a measured
+  // position; geoStatus is "manual" whenever this is the origin in use.
+  originCity: "",
+  cities: null,
+  geoStatus: "idle",
+  geoAccuracy: 0,
+  // The browser's verbatim error message from the last failed ask.
+  geoDetail: "",
 };
 
 /* The wiki stores terse family codes.  Spelling them out - and saying what they
@@ -112,20 +168,31 @@ const plural = (n, word) => `${fmt.format(n)} ${word}${n === 1 ? "" : "s"}`;
 function criteria() {
   const c = {
     q: CONTROLS.q.value.trim(),
-    dome: CONTROLS.dome.checked,
-    commercial: CONTROLS.commercial.checked,
-    includeRemoved: CONTROLS.include_removed.checked,
+    dome: isOn(CONTROLS.dome),
+    commercial: isOn(CONTROLS.commercial),
+    includeRemoved: isOn(CONTROLS.include_removed),
     projector: CONTROLS.projector.value,
     film: CONTROLS.film.value,
     ar: CONTROLS.ar.value,
     sort: CONTROLS.sort.value || "location",
-    film70: CONTROLS.film70.checked,
+    film70: isOn(CONTROLS.film70),
     country: CONTROLS.country.value,
     region: state.region,
+    origin: state.origin,
   };
-  if (state.tab === "country") c.country = state.country;
-  if (state.tab === "film70") c.film70 = true;
-  if (c.sort === "relevance" && !c.q) c.sort = "location";
+  // Near me is a worldwide question. The country filter is hidden while the
+  // section is open and dropped from the criteria here, because pinning it
+  // would hide the cinema an hour away over a border - and in a country the
+  // size of India it is what put Delhi in front of someone in Mumbai.
+  if (state.tab === "nearme") {
+    c.country = "";
+    c.region = "";
+    c.sort = state.origin ? "distance" : "location";
+  }
+  // A sort we cannot honour is not left standing: a shared ?sort=distance link
+  // arrives before any permission exists, and a refusal leaves the choice on
+  // the control until requestPosition() resets it.
+  if (c.sort === "distance" && !c.origin) c.sort = "location";
   return c;
 }
 
@@ -140,18 +207,23 @@ function activeFilters() {
   if (CONTROLS.q.value.trim()) {
     add(`“${CONTROLS.q.value.trim()}”`, () => { CONTROLS.q.value = ""; });
   }
-  if (state.tab !== "film70" && CONTROLS.film70.checked) {
-    add("70 mm film", () => { CONTROLS.film70.checked = false; });
+  if (isOn(CONTROLS.film70)) {
+    add("70 mm film", () => setOn(CONTROLS.film70, false));
   }
-  if (CONTROLS.dome.checked) add("Dome", () => { CONTROLS.dome.checked = false; });
-  if (CONTROLS.commercial.checked) {
-    add("Commercial films", () => { CONTROLS.commercial.checked = false; });
+  if (isOn(CONTROLS.dome)) add("Dome", () => setOn(CONTROLS.dome, false));
+  if (isOn(CONTROLS.commercial)) {
+    add("Commercial films", () => setOn(CONTROLS.commercial, false));
   }
-  if (CONTROLS.include_removed.checked) {
-    add("Including closed", () => { CONTROLS.include_removed.checked = false; });
+  if (isOn(CONTROLS.include_removed)) {
+    add("Including closed", () => setOn(CONTROLS.include_removed, false));
   }
-  if (state.tab !== "country" && CONTROLS.country.value) {
-    add(CONTROLS.country.value, () => { CONTROLS.country.value = ""; });
+  // Near me ignores the country filter outright, so offering to clear it there
+  // would be offering to switch off something that is already off.
+  if (state.tab !== "nearme" && CONTROLS.country.value) {
+    add(CONTROLS.country.value, () => {
+      CONTROLS.country.value = "";
+      state.countryAuto = false;
+    });
   }
   if (state.region) add(state.region, () => { state.region = ""; });
   if (CONTROLS.projector.value) {
@@ -167,24 +239,24 @@ function activeFilters() {
   return chips;
 }
 
-/* Only the controls that live inside the collapsed panel. The search box and
- * the region chip sit outside it and are already visible, so opening the panel
- * for them would point at nothing. Sort is excluded too - it reorders the list
- * without hiding anything, so a shut panel never misrepresents the count. */
+/* Only the controls that live inside the collapsed panel. The search box, the
+ * region chip and now the two quick filters sit outside it and are already
+ * visible, so opening the panel for them would point at nothing. Sort is
+ * excluded too - it reorders the list without hiding anything, so a shut panel
+ * never misrepresents the count. */
 function panelFiltersActive() {
-  return ["film70", "dome", "commercial", "include_removed"]
-           .some((key) => CONTROLS[key].checked)
-      || ["country", "projector", "film", "ar"]
-           .some((key) => CONTROLS[key].value !== "");
+  return ["dome", "commercial", "include_removed"].some((key) => isOn(CONTROLS[key]))
+      || ["projector", "film", "ar"].some((key) => CONTROLS[key].value !== "");
 }
 
 function resetFilters() {
   CONTROLS.q.value = "";
-  for (const key of ["film70", "dome", "commercial", "include_removed"]) {
-    CONTROLS[key].checked = false;
-  }
+  for (const key of TOGGLES) setOn(CONTROLS[key], false);
   for (const key of ["country", "projector", "film", "ar"]) CONTROLS[key].value = "";
   CONTROLS.sort.value = "location";
+  // Clearing the country here is a deliberate widening to everywhere, not a
+  // return to the guess. Only the masthead does the latter.
+  state.countryAuto = false;
   state.region = "";
 }
 
@@ -214,8 +286,17 @@ function syncUrlBar() {
                            ["include_removed", c.includeRemoved]]) {
     if (on) params.set(key, "1");
   }
-  if (state.tab !== "film70" && c.film70) params.set("film70", "1");
-  if (state.tab !== "country" && c.country) params.set("country", c.country);
+  if (c.film70) params.set("film70", "1");
+  // Read from the control, not the criteria: Near me blanks the country in
+  // criteria() to unpin the search, and a link that dropped it would come back
+  // with the visitor's country filter silently cleared.
+  //
+  // A guessed country is left out entirely - that is what makes the front page
+  // "/" and not "/?country=India" - while a deliberate "everywhere" is written
+  // as `any`, because the absence of the parameter already means "guess".
+  if (!state.countryAuto) {
+    params.set("country", CONTROLS.country.value || "any");
+  }
   for (const key of ["projector", "film", "ar"]) {
     if (CONTROLS[key].value) params.set(key, CONTROLS[key].value);
   }
@@ -301,6 +382,20 @@ function venueCard(v) {
   const where = el("p", "where");
   where.append(icon("pin"), document.createTextNode(
     [v.city, v.state, v.country].filter(Boolean).join(", ")));
+  // Only present when the list is ordered by distance, and rounded hard: half
+  // these venues are located to their city, so a decimal would be a precision
+  // the data does not have.
+  if (v._km != null) {
+    // "0 km" reads as missing data rather than as "very close", and it is what
+    // a city-mapped venue in the town you are standing in rounds to.
+    const km = v._km < 1 ? "< 1 km"
+      : `${fmt.format(v._km < 100 ? Math.round(v._km) : Math.round(v._km / 10) * 10)} km`;
+    const tag = el("span", "away", km);
+    tag.title = v.geo_precision === "venue"
+      ? "Straight-line distance from where you are to the theatre."
+      : `Straight-line distance from where you are to ${v.city} — this one is only mapped to its city.`;
+    where.append(tag);
+  }
   main.append(where);
 
   const badges = el("div", "badges");
@@ -370,24 +465,42 @@ function summarize(result, c) {
 
 // ------------------------------------------------------------ the sections
 
-/* Section (c): a plain answer to "can I see real film where I live?", before
- * any list. */
-function film70Banner() {
-  const report = countryReport(state.venues, state.country);
+/* The country the My Country section reports on.
+ *
+ * The promoted filter wins when it is set, so changing it moves the section
+ * with the list instead of leaving the two describing different countries.
+ * With the filter on Anywhere it falls back to the guess, which is what a
+ * visitor who has touched nothing should see. */
+function shownCountry() {
+  return CONTROLS.country.value || state.country;
+}
+
+/* My Country: one section answering both country questions.
+ *
+ * These were two tabs. "Is there real film here?" is the question this site was
+ * built for and led the 70 mm section; "how many are there?" opened the country
+ * section. Asked one after the other about the same place they are obviously
+ * one thing, and splitting them across two tabs meant reading a country's
+ * headline twice to get both halves.
+ *
+ * Order is question, answer, detail, then the wider count: the 15/70 verdict
+ * leads because it is the one that decides whether to get on a plane. */
+function myCountryBanner() {
+  const country = shownCountry();
   const box = el("div", "verdict");
 
-  if (!state.country) {
+  if (!country) {
     box.append(el("p", "verdict-q", "Where are you?"));
     box.append(el("p", null,
-      "Pick a country above and this will tell you whether you can see real "
-      + "15/70 mm film without getting on a plane."));
+      "Pick a country above and this will tell you what is there, and whether "
+      + "any of it runs real 15/70 mm film."));
     return box;
   }
 
+  const report = countryReport(state.venues, country);
   const yes = report.film70 > 0;
   box.classList.add(yes ? "yes" : "no");
-  box.append(el("p", "verdict-q",
-    `Is there 15/70 mm film IMAX in ${state.country}?`));
+  box.append(el("p", "verdict-q", `Is there 15/70 mm film IMAX in ${country}?`));
 
   const answer = el("p", "verdict-a");
   answer.append(icon(yes ? "film" : "cross"));
@@ -396,24 +509,41 @@ function film70Banner() {
 
   if (yes) {
     box.append(el("p", null,
-      `${plural(report.film70, "theatre")} in ${state.country} still `
-      + `${report.film70 === 1 ? "runs" : "run"} real film, out of `
-      + `${plural(report.venues, "IMAX venue")} in the country.`));
+      `${plural(report.film70, "theatre")} in ${country} still `
+      + `${report.film70 === 1 ? "runs" : "run"} real film.`));
   } else if (report.nearby.length) {
     const nearest = report.nearby.slice(0, 4)
       .map((c) => `${c.country} (${c.n})`).join(", ");
     box.append(el("p", null,
-      `Nothing in ${state.country}${report.venues
-        ? ` — its ${plural(report.venues, "IMAX venue")} `
-          + `${report.venues === 1 ? "is" : "are"} all digital`
-        : ""}. The closest in ${report.region}: ${nearest}.`));
+      `Nothing in ${country}. The closest in ${report.region}: ${nearest}.`));
   } else {
     box.append(el("p", null,
-      `No 15/70 mm film IMAX in ${state.country}, and none elsewhere in `
-      + `${report.region || "the region"} either. The full list is below.`));
+      `No 15/70 mm film IMAX in ${country}, and none elsewhere in `
+      + `${report.region || "the region"} either.`));
   }
 
-  const cta = film70Cta(report);
+  // The wider count, which used to be the whole of the country section.
+  if (!report.venues) {
+    box.append(el("p", null,
+      `No IMAX venues listed in ${country} at all. The wiki only lists laser `
+      + "and 15/70 mm houses, so a plain digital screen may still exist there."));
+  } else {
+    const parts = [plural(report.venues, "IMAX venue")];
+    if (report.ar1_43) parts.push(`${report.ar1_43} with a full-height 1.43:1 screen`);
+    if (report.dome) parts.push(`${report.dome} dome`);
+    box.append(el("p", null, parts.join(" · ")));
+  }
+
+  // Only when the country on screen is the one we worked out. Once the filter
+  // has been pointed somewhere else, "guessed from your timezone" would be
+  // explaining a guess that is no longer on display.
+  if (country === state.country) {
+    const how = el("p", "how");
+    how.append(document.createTextNode(explain(state.detection || {})));
+    box.append(how);
+  }
+
+  const cta = film70Cta(report, country);
   if (cta) box.append(cta);
   return box;
 }
@@ -422,8 +552,9 @@ function film70Banner() {
  * who just read "yes, there is one in your country" wants next.  Offer the
  * obvious narrowing as a button rather than making them work out which of the
  * controls below does it. */
-function film70Cta(report) {
-  const narrowedToCountry = CONTROLS.country.value === state.country;
+function film70Cta(report, country) {
+  const narrowedToCountry = CONTROLS.country.value === country
+    && isOn(CONTROLS.film70);
   const narrowedToRegion = state.region === report.region;
 
   let question, action, apply;
@@ -431,20 +562,38 @@ function film70Cta(report) {
   if (narrowedToCountry || narrowedToRegion) {
     question = "Showing a narrowed list.";
     action = "Show all 58 worldwide";
-    apply = () => { CONTROLS.country.value = ""; state.region = ""; };
+    apply = () => {
+      CONTROLS.country.value = "";
+      state.countryAuto = false;
+      state.region = "";
+      setOn(CONTROLS.film70, true);
+    };
   } else if (report.film70 > 0) {
     question = "Want to see just those?";
     action = report.film70 === 1
-      ? `Show the one in ${state.country}`
-      : `Show all ${fmt.format(report.film70)} in ${state.country}`;
-    apply = () => { CONTROLS.country.value = state.country; state.region = ""; };
+      ? `Show the one in ${country}`
+      : `Show all ${fmt.format(report.film70)} in ${country}`;
+    // The 70 mm toggle is the quick filter now, so the button that used to set
+    // only the country sets both - otherwise "show the 3 in India" handed back
+    // all 13 Indian venues and left the reader to find the toggle.
+    apply = () => {
+      CONTROLS.country.value = country;
+      state.countryAuto = false;
+      state.region = "";
+      setOn(CONTROLS.film70, true);
+    };
   } else if (report.nearby.length) {
     const total = report.nearby.reduce((sum, c) => sum + c.n, 0);
     question = "Want to see the closest ones?";
     action = total === 1
       ? `Show the one in ${report.region}`
       : `Show all ${fmt.format(total)} in ${report.region}`;
-    apply = () => { state.region = report.region; CONTROLS.country.value = ""; };
+    apply = () => {
+      state.region = report.region;
+      CONTROLS.country.value = "";
+      state.countryAuto = false;
+      setOn(CONTROLS.film70, true);
+    };
   } else {
     return null;
   }
@@ -459,40 +608,231 @@ function film70Cta(report) {
   return wrap;
 }
 
-/* Section (b): what is actually near you, with the guess shown as a guess. */
-function countryBanner() {
+/* Near me: distance, and nothing else.
+ *
+ * This section used to be the country section wearing a different label, which
+ * is how it came to show an alphabetical list of Indian venues - Delhi first,
+ * because D sorts before M - to a reader standing in Mumbai. It now has exactly
+ * one job, and when it cannot do that job it says so instead of quietly
+ * offering the alphabet as though it were geography.
+ */
+function nearMeBanner() {
   const box = el("div", "verdict");
-  if (!state.country) {
-    box.append(el("p", "verdict-q", "Where are you?"));
-    box.append(el("p", null, "Pick a country to see what is nearby."));
+
+  if (state.origin) {
+    box.classList.add("yes");
+    // With an origin in hand the only statuses are located, manual, and
+    // locating mid-upgrade. Anything short of a measured fix renders as the
+    // named city - claiming "Nearest first" while the device is still being
+    // asked would be the banner getting ahead of the facts.
+    if (state.geoStatus !== "located") {
+      box.append(el("p", "verdict-q", `Nearest to ${state.originCity}`));
+      box.append(el("p", null,
+        "Distances are measured from the middle of the city you named, as "
+        + "straight lines. Name a different one below if that is wrong."));
+      box.append(cityPicker());
+      if (canLocate()) box.append(preciseCta());
+    } else {
+      box.append(el("p", "verdict-q", "Nearest first"));
+      box.append(el("p", null,
+        "Every venue on earth, closest to you at the top. Distances are "
+        + "straight lines, and about half these theatres are mapped to their "
+        + "city rather than their door."));
+      // A measured fix lives only in memory, so a reload on a machine whose
+      // provider fails cold loses the ranking entirely. Offering to remember
+      // the nearest city converts detection into declaration - the visitor
+      // says it, so it may be stored - and a reload then opens ranked from
+      // that city while a fresh fix is tried quietly behind it.
+      const near = nearestCity();
+      if (near && !readStoredCity()) {
+        const wrap = el("div", "cta");
+        wrap.append(el("span", "cta-q", "Keep this working after a reload?"));
+        const b = el("button", "ghost small");
+        b.type = "button";
+        b.append(icon("pin"), document.createTextNode(`Remember I'm near ${near}`));
+        b.addEventListener("click", () => {
+          storeCity(near);
+          state.originCity = near;
+          update();
+        });
+        wrap.append(b);
+        box.append(wrap);
+      }
+    }
     return box;
   }
 
-  const report = countryReport(state.venues, state.country);
-  box.append(el("p", "verdict-q", state.country));
-
-  if (!report.venues) {
+  if (!canLocate()) {
+    box.append(el("p", "verdict-q", "This browser won't share a location"));
     box.append(el("p", null,
-      `No IMAX venues listed in ${state.country}. The wiki only lists laser `
-      + "and 15/70 mm houses, so a plain digital screen may still exist there."));
-  } else {
-    const parts = [plural(report.venues, "IMAX venue")];
-    if (report.film70) parts.push(`${report.film70} running 15/70 mm film`);
-    if (report.ar1_43) parts.push(`${report.ar1_43} with a full-height 1.43:1 screen`);
-    if (report.dome) parts.push(`${report.dome} dome`);
-    box.append(el("p", null, parts.join(" · ")));
+      "Ranking by distance needs to know where you are - but you can just "
+      + "say so instead."));
+    box.append(cityPicker());
+    return box;
   }
 
-  const how = el("p", "how");
-  how.append(document.createTextNode(explain(state.detection || {})));
-  box.append(how);
+  const failed = GEO_FAILURES.includes(state.geoStatus);
+  if (failed) box.classList.add("no");
+  box.append(el("p", "verdict-q",
+    state.geoStatus === "locating" ? "Finding you…" : "Where are you?"));
+  box.append(el("p", null, failed
+    ? "Without a location this section has nothing to rank, so the list below "
+      + "is in country order — not distance order."
+    : "This section ranks all 476 venues by how far they are from you. Your "
+      + "browser will ask before sharing anything."));
+
+  // Which failure, said here rather than only in the line under the result
+  // count. That line sits below the search box and the filters, far enough from
+  // this box that "it didn't work" and "here is why" read as unrelated - and
+  // the why is the difference between checking a setting and giving up.
+  if (failed) {
+    const why = explainPosition(state.geoStatus, state.geoAccuracy);
+    box.append(el("p", "how",
+      state.geoDetail ? `${why} (Your browser said: \u201c${state.geoDetail}\u201d.)` : why));
+  }
+
+  if (failed && state.geoStatus !== "unsupported") {
+    const wrap = el("div", "cta");
+    wrap.append(el("span", "cta-q",
+      state.geoStatus === "denied" ? "Changed your mind?" : "Worth another go?"));
+    const button = el("button", "ghost small");
+    button.type = "button";
+    button.append(icon("pin"), document.createTextNode("Try again"));
+    button.addEventListener("click", () => { state.geoStatus = "idle"; requestPosition(); });
+    wrap.append(button);
+    box.append(wrap);
+  }
+
+  // The device is not the only thing that knows where the visitor is - the
+  // visitor does. Offered in every state short of an answered one, because a
+  // machine that cannot produce a fix (an access point Apple has never heard
+  // of, say) fails identically forever, and a dead end here means the whole
+  // section never works for that person at all.
+  box.append(cityPicker());
   return box;
+}
+
+/* A typeahead over every city the data can measure from. A named city becomes
+ * the origin exactly as a fix would, at the only precision the ranking ever
+ * claims - half the venues are mapped to their city centre anyway.
+ *
+ * The menu is drawn by hand rather than with <datalist>: the native popover is
+ * browser chrome, takes no CSS at all, and sat inside the newsprint page like a
+ * sticker on a broadsheet. Matching happens through fold(), so "sao" finds
+ * S\u00e3o Paulo the same way the search box would. */
+function cityPicker() {
+  const wrap = el("div", "cta");
+  const lbl = el("label", "cta-q");
+  lbl.append(document.createTextNode("Or name your city:\u00a0"));
+  const box = el("span", "citybox");
+  const input = el("input", "citypick");
+  input.type = "text";
+  input.placeholder = "Start typing\u2026";
+  input.autocomplete = "off";
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-expanded", "false");
+  const menu = el("ul", "citymenu");
+  menu.hidden = true;
+
+  const close = () => {
+    menu.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  };
+
+  input.addEventListener("input", () => {
+    const q = fold(input.value.trim());
+    if (!q) { close(); return; }
+    const rows = [];
+    for (const name of state.cities.keys()) {
+      if (fold(name).includes(q)) {
+        rows.push(name);
+        if (rows.length === 8) break;
+      }
+    }
+    menu.replaceChildren(...rows.map((name) => {
+      const li = el("li");
+      const b = el("button", null, name);
+      b.type = "button";
+      // mousedown, not click: it fires before the input's blur closes the
+      // menu, so the choice lands instead of evaporating.
+      b.addEventListener("mousedown", (e) => { e.preventDefault(); setManualOrigin(name); });
+      li.append(b);
+      return li;
+    }));
+    menu.hidden = rows.length === 0;
+    input.setAttribute("aria-expanded", String(!menu.hidden));
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const first = menu.querySelector("button");
+      if (first) setManualOrigin(first.textContent);
+      else setManualOrigin(input.value.trim());
+    } else if (e.key === "Escape") close();
+  });
+  input.addEventListener("blur", close);
+
+  box.append(input, menu);
+  lbl.append(box);
+  wrap.append(lbl);
+  return wrap;
+}
+
+/* The city the fix landed nearest to, for offering to remember. 150 km keeps
+ * the offer honest: an origin in the middle of nowhere names nothing. */
+function nearestCity() {
+  if (!state.origin || !state.cities) return "";
+  let best = "";
+  let bestKm = Infinity;
+  for (const [name, c] of state.cities) {
+    const km = haversineKm(state.origin.lat, state.origin.lon, c.lat, c.lon);
+    if (km < bestKm) { bestKm = km; best = name; }
+  }
+  return bestKm <= 150 ? best : "";
+}
+
+function preciseCta() {
+  const wrap = el("div", "cta");
+  const locating = state.geoStatus === "locating";
+  wrap.append(el("span", "cta-q",
+    locating ? "Asking your device\u2026" : "Got a location after all?"));
+  const button = el("button", "ghost small");
+  button.type = "button";
+  button.disabled = locating;
+  button.append(icon("pin"), document.createTextNode(
+    locating ? "Finding you\u2026" : "Use my actual position"));
+  button.addEventListener("click", () => { state.geoStatus = "idle"; requestPosition(); });
+  wrap.append(button);
+  return wrap;
+}
+
+/* Make a named city the origin. Returns false when the name matches nothing,
+ * so the caller can leave the input standing for another go. */
+function setManualOrigin(label) {
+  if (!label || !state.cities) return false;
+  let hit = state.cities.get(label);
+  if (!hit) {
+    // The datalist suggests exact labels, but typed input deserves a forgiving
+    // match: "mumbai" should find "Mumbai, India".
+    const folded = label.toLowerCase();
+    for (const [name, coords] of state.cities) {
+      if (name.toLowerCase().startsWith(folded)) { label = name; hit = coords; break; }
+    }
+  }
+  if (!hit) return false;
+  state.origin = { lat: hit.lat, lon: hit.lon };
+  state.originCity = label;
+  storeCity(label);
+  setGeoStatus("manual");
+  update();
+  return true;
 }
 
 function renderBanner() {
   banner.replaceChildren();
-  if (state.tab === "country") banner.append(countryBanner());
-  else if (state.tab === "film70") banner.append(film70Banner());
+  if (state.tab === "all") banner.append(myCountryBanner());
+  else if (state.tab === "nearme") banner.append(nearMeBanner());
 }
 
 /* Built fresh each render into both containers.  A pager only at the foot of
@@ -583,6 +923,7 @@ function update({ keepPage = false } = {}) {
   }
   renderActiveFilters();
   renderBanner();
+  renderGeoStatus();
   render();
 }
 
@@ -594,23 +935,31 @@ function goToPage(page) {
 
 // ------------------------------------------------------------------- tabs
 
-function setTab(tab, { push = true, keepPage = false } = {}) {
+/**
+ * `gesture` is true only when a human clicked the tab, and is what makes it
+ * safe for "Near me" to ask for a position: the click is on a control that
+ * names what the position is for, which is consent by any reasonable reading.
+ * A ?tab= link restoring on load passes it false and must stay silent - that is
+ * a page the visitor has not touched yet.
+ */
+function setTab(tab, { push = true, keepPage = false, gesture = false } = {}) {
   state.tab = TABS.includes(tab) ? tab : "all";
+  if (gesture && state.tab === "nearme") locateForNearMe();
   for (const button of document.querySelectorAll("[data-tab]")) {
     const active = button.dataset.tab === state.tab;
     button.classList.toggle("on", active);
     button.setAttribute("aria-selected", String(active));
   }
-  // Hide whichever control this section already decides for you.
-  $("f-country").hidden = state.tab === "country";
-  $("t-film70").hidden = state.tab === "film70";
+  // Hide whichever control this section already decides for you. Near me
+  // ignores the country entirely, so leaving the filter on screen would invite
+  // a narrowing that the section then refuses to apply.
+  $("f-country").hidden = state.tab === "nearme";
   const types = state.tab === "types";
   $("types").hidden = !types;
   $("controls").hidden = types;
   $("resultbar").hidden = types;
   $("results").hidden = types;
   $("pager-bottom").hidden = types;
-  $("countrypicker").hidden = state.tab === "all" || types;
   if (push) update({ keepPage });
 }
 
@@ -652,6 +1001,10 @@ function fillFilmSelect(select, rows, total70) {
   select.append(group);
 }
 
+function fillCities() {
+  state.cities = cityIndex(state.venues);
+}
+
 function fillControls(facets) {
   fillSimple(CONTROLS.country, facets.countries);
   fillSimple(CONTROLS.projector, byCount(facets.projectors), DIGITAL_LABELS);
@@ -666,63 +1019,293 @@ function fillControls(facets) {
       "The widescreen IMAX frame used by most commercial auditoriums."),
   );
 
-  // The "your country" picker lists everywhere, not only places with venues,
-  // so the honest answer "nothing listed there" stays reachable.
-  const picker = $("mycountry");
-  picker.replaceChildren(option("", "Select…"));
-  for (const row of facets.countries) {
-    picker.append(option(row.value, `${row.value} (${row.n})`));
+}
+
+/* The promoted country filter is also the "which country am I asking about"
+ * control, so a deliberate choice is worth remembering the way the old picker's
+ * was. Clearing it back to Anywhere is not a country, so it does not overwrite
+ * a stored one - a visitor widening the list has not moved house. */
+function setCountry(country, { remember = true } = {}) {
+  CONTROLS.country.value = country;
+  // Touching the control at all makes it a choice, including choosing
+  // Anywhere - which is why a widened list keeps its `country=any` in the URL
+  // instead of springing back to your own country on the next load.
+  state.countryAuto = false;
+  if (country) {
+    state.country = country;
+    if (remember) storeCountry(country);
+  }
+  update();
+}
+
+// ------------------------------------------------------- precise location
+
+/* Asking for a position is never something the page does on its own.
+ *
+ * Every path into this function starts at a click: the "Nearest first" sort, or
+ * the button in the Near me section. The one exception is a reload where
+ * permission was already granted, which raises no prompt at all - see start().
+ *
+ * A refusal is final for the visit. The sort reverts to location, the reason is
+ * shown once, and nothing asks again; browsers remember a denial anyway, so a
+ * retry would be a prompt the visitor never sees and a spinner that never ends.
+ */
+/**
+ * Entering the Near me section. Asks once, and only when asking can lead
+ * anywhere: not while a request is in flight, not when we already have a fix,
+ * and not after a refusal - browsers remember a denial, so re-asking would show
+ * the visitor nothing and spin forever.
+ */
+function locateForNearMe() {
+  if (!canLocate() || state.origin) return;
+  if (state.geoStatus === "locating" || GEO_FINAL.includes(state.geoStatus)) return;
+  requestPosition();
+}
+
+async function requestPosition() {
+  if (state.geoStatus === "locating") return false;
+  setGeoStatus("locating");
+  try {
+    const fix = await locate();
+    state.origin = { lat: fix.lat, lon: fix.lon };
+    state.geoAccuracy = fix.accuracy || 0;
+    setGeoStatus("located");
+    CONTROLS.sort.value = "distance";
+    update();
+    return true;
+  } catch (err) {
+    // A named city outranks no answer at all: if the visitor has told us where
+    // they are, a failed measurement falls back to that rather than to an
+    // unranked list.
+    if (state.originCity && setManualOrigin(state.originCity)) return false;
+    state.origin = null;
+    // The OS's own words, kept verbatim: this hunt has been one guess at the
+    // failure after another, and the raw message is the thing that settles it.
+    state.geoDetail = err.message || "";
+    setGeoStatus(err.code || "unavailable");
+    // Leave the control saying what the list actually does.
+    if (CONTROLS.sort.value === "distance") CONTROLS.sort.value = "location";
+    update();
+    // The question the failure leaves open is "then where are you?" - so put
+    // the caret in the box that takes the answer.
+    banner.querySelector(".citypick")?.focus();
+    return false;
   }
 }
 
-function setCountry(country, { remember = true } = {}) {
-  state.country = country;
-  $("mycountry").value = country;
-  if (remember) storeCountry(country);
-  update();
+/**
+ * Handle a link that arrives already wanting a position - either `?sort=distance`
+ * or `?tab=nearme`.
+ *
+ * This is the one place a position could be resolved without a click, so it is
+ * also the one place that has to be careful. Permission is checked before
+ * anything is requested: if it was granted on a previous visit the fix costs no
+ * prompt, and the link opens as its sender meant it to. Otherwise the page must
+ * not greet a stranger with a dialog it has not earned - Near me says what it
+ * is waiting for, and a distance sort quietly becomes location with the control
+ * reset to admit it.
+ */
+async function restorePosition() {
+  const wanted = CONTROLS.sort.value === "distance" || state.tab === "nearme";
+  if (!wanted) return;
+  if (state.origin && state.geoStatus !== "manual") return;
+
+  if (!canLocate() || await permissionState() !== "granted") {
+    if (!state.origin && CONTROLS.sort.value === "distance") {
+      CONTROLS.sort.value = "location";
+      update();
+    }
+    return;
+  }
+
+  // A remembered city is already ranking the list, so the upgrade to a
+  // measured fix happens without touching geoStatus: flipping the banner to
+  // "Finding you\u2026" and back for an attempt the visitor never asked to
+  // watch would be flicker in the one place the page had just settled.
+  if (state.origin) {
+    try {
+      const got = await locate({ patience: 5000 });
+      state.origin = { lat: got.lat, lon: got.lon };
+      state.geoAccuracy = got.accuracy || 0;
+      setGeoStatus("located");
+      CONTROLS.sort.value = "distance";
+      update();
+    } catch {
+      /* the named city stands */
+    }
+    return;
+  }
+  await requestPosition();
+}
+
+function setGeoStatus(status) {
+  state.geoStatus = status;
+  // The banner holds the buttons that cause status changes, so it is where
+  // the response to a click has to appear - progress printed down by the
+  // result count reads as noise from somewhere else entirely.
+  renderBanner();
+  renderGeoStatus();
+}
+
+/* The reason the list is in the order it is, whenever a location was involved.
+ * The Near me section carries its own headline; this is the line under the
+ * count, which is where someone looking at the rows themselves will be. */
+function renderGeoStatus() {
+  const box = $("geostatus");
+  // On the Near me tab this line says nothing at all: the banner up there
+  // holds every location control and explains itself beside them, and the
+  // same sentence repeated down here reads as a message from somewhere else.
+  // The line exists for the other tabs, where "Nearest first" can be driving
+  // the order with no banner anywhere explaining why.
+  let text = "";
+  if (state.tab !== "nearme" && state.origin && state.geoStatus !== "locating") {
+    text = state.geoStatus === "manual"
+      ? `Distances measured from ${state.originCity} \u2014 a city you named, `
+        + "not a detected position. Nothing was stored but the name."
+      : explainPosition(state.geoStatus, state.geoAccuracy);
+  }
+  box.textContent = text;
+  box.hidden = !text;
 }
 
 function restoreFromUrl() {
   const params = new URLSearchParams(location.search);
   CONTROLS.q.value = params.get("q") || "";
-  for (const [key, id] of [["film70", "film70"], ["dome", "dome"],
-                           ["commercial", "commercial"],
-                           ["include_removed", "include_removed"]]) {
-    CONTROLS[id].checked = params.get(key) === "1";
-  }
-  for (const key of ["country", "projector", "film", "ar", "sort"]) {
+  for (const key of TOGGLES) setOn(CONTROLS[key], params.get(key) === "1");
+  for (const key of ["projector", "film", "ar", "sort"]) {
     if (params.get(key)) CONTROLS[key].value = params.get(key);
   }
+
+  // No `country` at all means "wherever the visitor is", and start() fills it
+  // in. `any` is the explicit opposite, and the only way to say "everywhere" in
+  // a link that survives a reload.
+  const country = params.get("country");
+  state.countryAuto = !country;
+  if (country) CONTROLS.country.value = country === "any" ? "" : country;
   state.region = params.get("region") || "";
   state.page = Math.max(1, parseInt(params.get("page"), 10) || 1);
-  return params.get("tab") || "all";
+  const tab = params.get("tab") || "all";
+  return TAB_ALIASES[tab] || tab;
+}
+
+/* Completions under the search box, drawn with the same menu the city picker
+ * uses. Everything offered is something the search would find - the ranking
+ * and matching live in query.js where they can be tested - and choosing one
+ * simply types it, so the ordinary filter path does the rest. */
+function wireSearchSuggest() {
+  const row = CONTROLS.q.parentElement;
+  const menu = el("ul", "citymenu searchmenu");
+  menu.hidden = true;
+  row.append(menu);
+  let active = -1;
+
+  const KIND_LABEL = { country: "Country", city: "City", theatre: "Theatre" };
+  const close = () => { menu.hidden = true; active = -1; };
+  const choose = (label) => { CONTROLS.q.value = label; close(); update(); };
+
+  CONTROLS.q.addEventListener("input", () => {
+    const rows = suggest(state.suggestions || [], CONTROLS.q.value);
+    active = -1;
+    menu.replaceChildren(...rows.map(({ label, kind }) => {
+      const li = el("li");
+      const b = el("button");
+      b.type = "button";
+      b.append(document.createTextNode(label), el("span", "kind", KIND_LABEL[kind]));
+      // mousedown, not click: it beats the input's blur, so the choice lands.
+      b.addEventListener("mousedown", (e) => { e.preventDefault(); choose(label); });
+      li.append(b);
+      return li;
+    }));
+    menu.hidden = rows.length === 0;
+  });
+
+  CONTROLS.q.addEventListener("keydown", (e) => {
+    if (menu.hidden) return;
+    const buttons = [...menu.querySelectorAll("button")];
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      active = (active + (e.key === "ArrowDown" ? 1 : -1) + buttons.length)
+        % buttons.length;
+      buttons.forEach((b, i) => b.classList.toggle("on", i === active));
+    } else if (e.key === "Enter") {
+      // Enter only picks something deliberately arrowed to. The box searches
+      // as you type, so a plain Enter just puts the menu away - completing to
+      // the top hit uninvited would yank the filter out from under the query.
+      if (active >= 0) { e.preventDefault(); choose(buttons[active].firstChild.textContent); }
+      else close();
+    } else if (e.key === "Escape") close();
+  });
+  CONTROLS.q.addEventListener("blur", close);
 }
 
 function wire() {
+  wireSearchSuggest();
   CONTROLS.q.addEventListener("input", debounce(update, 160));
-  for (const key of ["film70", "dome", "commercial", "include_removed",
-                     "country", "projector", "ar", "sort"]) {
+  for (const key of ["projector", "ar"]) {
     CONTROLS[key].addEventListener("change", update);
   }
 
+  // The whole pill is the control, so the click lands on the button itself
+  // rather than on a checkbox inside it.
+  for (const key of TOGGLES) {
+    CONTROLS[key].addEventListener("click", () => {
+      setOn(CONTROLS[key], !isOn(CONTROLS[key]));
+      update();
+    });
+  }
+
+  // Choosing a country here is also choosing which country My Country reports
+  // on, so it goes through setCountry() and gets remembered.
+  CONTROLS.country.addEventListener("change", () => setCountry(CONTROLS.country.value));
+
+  // Choosing "Nearest first" is itself the consent gesture - it is a click, and
+  // it says plainly what the position is wanted for - so the prompt is raised
+  // here rather than behind a separate button.
+  CONTROLS.sort.addEventListener("change", () => {
+    if (CONTROLS.sort.value === "distance" && !state.origin) {
+      requestPosition();
+      return;
+    }
+    update();
+  });
+
   // Picking "Any 15/70 mm film" hands the filter to the toggle that owns it,
-  // so the select and the checkbox can never end up disagreeing.
+  // so the select and the quick filter can never end up disagreeing.
   CONTROLS.film.addEventListener("change", () => {
     if (CONTROLS.film.value === ANY_FILM) {
       CONTROLS.film.value = "";
-      if (state.tab === "film70") { update(); return; }
-      CONTROLS.film70.checked = true;
+      setOn(CONTROLS.film70, true);
     }
     update();
   });
 
   for (const button of document.querySelectorAll("[data-tab]")) {
-    button.addEventListener("click", () => setTab(button.dataset.tab));
+    button.addEventListener("click", () => setTab(button.dataset.tab, { gesture: true }));
   }
 
-  $("mycountry").addEventListener("change", (e) => setCountry(e.target.value));
-
   $("reset").addEventListener("click", () => { resetFilters(); update(); });
+
+  /* The masthead is the way back to the start, which is what a title in that
+   * position promises. It lands on the same state a first visit does - every
+   * filter off, All venues, page one, and the country back to the guess rather
+   * than to Anywhere, since that guess is part of the front page rather than
+   * something the visitor applied.
+   *
+   * Modified clicks are left alone so the href does its job: a cmd-click that
+   * silently reset the page in the current tab instead of opening a new one
+   * would be the link lying about being a link. */
+  $("home").addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    resetFilters();
+    // Back to the guess, and back to being a guess: countryAuto is what keeps
+    // it out of the URL, so the address bar ends up at "/" like a first visit
+    // rather than at "/?country=India".
+    CONTROLS.country.value = state.country;
+    state.countryAuto = true;
+    setTab("all");
+    window.scrollTo({ top: 0 });
+  });
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "/" && document.activeElement !== CONTROLS.q) {
@@ -857,18 +1440,38 @@ async function start() {
     : "No revision recorded";
 
   fillControls(data.facets);
+  fillCities();
+  state.suggestions = buildSuggestions(
+    state.venues, data.facets.countries.map((c) => c.value));
+
+  // A city named on an earlier visit is a standing answer to "where are you?",
+  // so it comes back without being asked for - permission never enters into it.
+  const rememberedCity = readStoredCity();
+  if (rememberedCity && state.cities.has(rememberedCity)) {
+    const coords = state.cities.get(rememberedCity);
+    state.origin = { lat: coords.lat, lon: coords.lon };
+    state.originCity = rememberedCity;
+    state.geoStatus = "manual";
+  }
 
   state.detection = detectCountry(data.geo || {});
   state.country = state.detection.country || "";
-  $("mycountry").value = state.country;
-  // If the guess landed somewhere with no venues, the picker has no such
-  // option; add it so the selection is visible rather than silently blank.
-  if (state.country && !$("mycountry").value) {
-    $("mycountry").append(option(state.country, `${state.country} (0)`));
-    $("mycountry").value = state.country;
-  }
+
+  // An order the browser cannot produce should not be on the menu at all.
+  if (!canLocate()) $("sort-distance")?.remove();
 
   const tab = restoreFromUrl();
+
+  // Applied after the URL has been read, because the URL is what decides
+  // whether it applies at all: a link naming a country wins, `country=any`
+  // means the sender deliberately widened it, and only a link that says
+  // nothing about countries gets the guess.
+  //
+  // A guess with no venues - Norway, say - leaves the select on Anywhere, since
+  // the facets only list countries that have some. shownCountry() still falls
+  // back to it, so My Country can report "nothing listed there" honestly.
+  if (state.countryAuto) CONTROLS.country.value = state.country;
+
   wire();
   // A shared link can arrive with filters already applied. Landing on a shut
   // panel would make the narrowed result set look like the whole dataset, so
@@ -876,6 +1479,10 @@ async function start() {
   if (panelFiltersActive()) $("filterpanel").open = true;
   // keepPage so a shared ?page=3 link lands where it says it will.
   setTab(tab, { keepPage: true });
+
+  // Last, and deliberately after the first paint: resolving a position may
+  // await the Permissions API, and the list must not wait on that to appear.
+  await restorePosition();
 }
 
 start();

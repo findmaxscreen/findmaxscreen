@@ -206,7 +206,11 @@
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
       <span id="thememode">Auto</span>
     </button>
-    <h1><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</h1>
+    <!-- A real link to the site root, so middle-click and "open in new tab"
+         behave. app.js intercepts the plain left-click and clears everything in
+         place instead, which is the same destination without the reload. -->
+    <h1><a href="./" id="home" title="Back to the start — clears every filter"
+      ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</a></h1>
     <p class="tagline" id="tagline">Loading…</p>
 
     <details class="why">
@@ -236,21 +240,13 @@
     <button type="button" data-tab="all" role="tab" aria-selected="true">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-globe"></use></svg>All venues
     </button>
-    <button type="button" data-tab="country" role="tab" aria-selected="false">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg>Your country
-    </button>
-    <button type="button" data-tab="film70" role="tab" aria-selected="false">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>70&nbsp;mm film
+    <button type="button" data-tab="nearme" role="tab" aria-selected="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg>Near me
     </button>
     <button type="button" data-tab="types" role="tab" aria-selected="false">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-projector"></use></svg>IMAX types
     </button>
   </nav>
-
-  <div id="countrypicker" class="countrypicker" hidden>
-    <label for="mycountry">Your country</label>
-    <select id="mycountry"><option value="">Select…</option></select>
-  </div>
 
   <div id="banner"></div>
 
@@ -261,33 +257,55 @@
              aria-label="Search location or theatre" spellcheck="false">
     </div>
 
+    <!-- The two controls worth a tap, kept out of the collapsed panel below.
+         70 mm had a tab of its own until it turned out to be a filter wearing a
+         tab's clothes, and burying the primary filter of a site built to find
+         15/70 mm film behind a disclosure triangle was always the wrong shape.
+
+         They sit under the search box rather than above the verdict: searching
+         and filtering are the same gesture, and splitting them left the reader
+         reaching past a paragraph of prose to get from one to the other.
+
+         One country control, not two: the picker that used to sit here said
+         "your country" while the filter below said "Country", and they were the
+         same question asked twice. This one narrows the list and names the
+         country the My Country section reports on. -->
+    <div id="quickfilters" class="quickfilters">
+      <button type="button" class="toggle big" id="film70"
+              role="switch" aria-checked="false">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>
+        <span>70&nbsp;mm film only</span>
+      </button>
+      <label id="f-country" class="quickcountry">
+        <span>Country</span>
+        <select id="country"><option value="">Anywhere</option></select>
+      </label>
+    </div>
+
     <!-- Collapsed by default. On a phone the toggles and selects together push
          the first venue below the fold, so the page opens on chrome rather than
          on results. The search box stays outside, and so does the active-filter
          bar below - a filter that is applied must stay visible even when the
          panel that set it is shut. -->
     <details class="filterpanel" id="filterpanel">
-      <summary>Filters</summary>
+      <summary>More filters</summary>
 
+      <!-- Switches, not checkboxes: the whole pill is the hit target, which is
+           what a thumb expects. role="switch" keeps that legible to a screen
+           reader, since there is no longer an input to carry the state. -->
       <div class="toggles">
-        <label class="toggle accent" id="t-film70">
-          <input type="checkbox" id="film70"> <span>70&nbsp;mm film only</span>
-        </label>
-        <label class="toggle">
-          <input type="checkbox" id="dome"> <span>Dome only</span>
-        </label>
-        <label class="toggle">
-          <input type="checkbox" id="commercial"> <span>Shows commercial films</span>
-        </label>
-        <label class="toggle">
-          <input type="checkbox" id="include_removed"> <span>Include closed</span>
-        </label>
+        <button type="button" class="toggle" id="dome" role="switch" aria-checked="false">
+          <span>Dome only</span>
+        </button>
+        <button type="button" class="toggle" id="commercial" role="switch" aria-checked="false">
+          <span>Shows commercial films</span>
+        </button>
+        <button type="button" class="toggle" id="include_removed" role="switch" aria-checked="false">
+          <span>Include closed</span>
+        </button>
       </div>
 
       <div class="selects">
-        <label id="f-country">Country
-          <select id="country"><option value="">Any</option></select>
-        </label>
         <label>Digital projector
           <select id="projector"><option value="">Any</option></select>
         </label>
@@ -297,12 +315,22 @@
         <label>Screen shape
           <select id="ar"><option value="">Any</option></select>
         </label>
+        <!-- "Location" is gone as a name, not as an order: it is still the
+             default and still what draws the country headings, so the control
+             has to be able to sit on it or the menu would misreport the list.
+             It is labelled for what the reader can see instead - the headings
+             say the country and the city - which leaves "Near me" the only
+             entry offering proximity. "Best match" is gone outright: it ranked
+             by a guess at what you meant, and you are better placed to judge
+             that than the sort is. -->
         <label>Sort by
           <select id="sort">
-            <option value="location">Location</option>
+            <option value="location">Country &amp; city</option>
+            <!-- Removed by app.js where the browser cannot honour it, rather
+                 than offering an order it would silently fail to produce. -->
+            <option value="distance" id="sort-distance">Nearest first</option>
             <option value="size">Biggest screen first</option>
             <option value="name">Theatre name</option>
-            <option value="relevance">Best match</option>
           </select>
         </label>
       </div>
@@ -390,6 +418,10 @@
     <p class="count" id="count" aria-live="polite"></p>
     <div id="pager-top" class="pagerbox"></div>
   </div>
+
+  <!-- How the ordering was arrived at, when a location was involved. Announced
+       politely because a refusal changes the list order under the reader. -->
+  <p class="how geostatus" id="geostatus" aria-live="polite" hidden></p>
 
   <div id="results"></div>
 

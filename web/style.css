@@ -94,6 +94,29 @@ a:hover { text-decoration-thickness: 2px; }
   letter-spacing: -0.015em;
   color: var(--ink-strong);
 }
+/* The title is a link home, and looks like nothing of the sort in every state:
+   no accent colour, no underline, not even on hover. A masthead is already
+   understood to be the way back, and dressing it as body-copy link made the one
+   piece of fixed furniture on the page twitch under the pointer.
+
+   The flex layout lives on the anchor now, since it is what actually holds the
+   icon and the words. The focus ring stays - it appears only for keyboard
+   navigation, where there is no other way to tell the title is a target. */
+.masthead h1 a,
+.masthead h1 a:visited,
+.masthead h1 a:hover,
+.masthead h1 a:active {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: inherit;
+  text-decoration: none;
+}
+.masthead h1 a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
 .masthead h1 .icon {
   font-size: 0.82em;
   stroke-width: 1.5;
@@ -211,28 +234,6 @@ a:hover { text-decoration-thickness: 2px; }
 }
 .tabs button.on .icon { color: var(--accent); }
 
-.countrypicker {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 16px;
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted-flat);
-}
-.countrypicker select {
-  font: inherit;
-  font-size: 15px;
-  letter-spacing: normal;
-  text-transform: none;
-  padding: 7px 9px;
-  color: var(--ink);
-  background: var(--raised);
-  border: 1px solid var(--rule-firm);
-  border-radius: 2px;
-}
-
 /* --------------------------------------------------------------- verdict */
 
 /* The answer to "can I see real film where I live?" comes before any list. */
@@ -281,7 +282,7 @@ a:hover { text-decoration-thickness: 2px; }
   border-bottom: 1px solid var(--rule);
 }
 
-.searchrow { display: flex; align-items: center; gap: 10px; }
+.searchrow { display: flex; align-items: center; gap: 10px; position: relative; }
 .searchicon {
   position: absolute;
   margin-left: 12px;
@@ -318,7 +319,7 @@ button.ghost {
   color: var(--ink);
   background: var(--raised);
   border: 1px solid var(--rule-firm);
-  border-radius: 2px;
+  border-radius: 9px;
   cursor: pointer;
 }
 button.ghost:hover { border-color: var(--accent); color: var(--accent); }
@@ -334,22 +335,67 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   color: var(--muted-flat);
   background: transparent;
   border: 1px solid var(--rule);
-  border-radius: 2px;
+  /* Part of the one place the hairline-and-2px house style gives way. The rule
+     is by role, not by element: anything you press is rounded - these switches,
+     the filter chips, the ghost buttons - while rules, panels and the inputs
+     you type or choose into stay square. */
+  border-radius: 9px;
   cursor: pointer;
   user-select: none;
 }
 .toggle:hover { border-color: var(--rule-firm); color: var(--ink); }
-.toggle:has(input:checked) {
-  color: var(--ink-strong);
-  background: var(--raised);
-  border-color: var(--rule-firm);
-}
-.toggle.accent:has(input:checked) {
+/* Switches now, not labels wrapping a checkbox: the state lives on the element
+   as aria-checked, so the selector reads it there. */
+/* Every switch turns oxblood when it is on, the 70 mm one included. It used to
+   be the only one that did, and the others went a raised near-white - so two
+   controls sitting in the same panel, doing the same thing, disagreed about
+   what "on" looks like. One state, one colour.
+
+   The 70 mm switch keeps its prominence through size and position rather than
+   through being the only red thing. */
+.toggle[aria-checked="true"] {
   color: var(--hot);
   background: var(--hot-bg);
   border-color: var(--accent);
 }
-.toggle input { accent-color: var(--accent); margin: 0; }
+.toggle .icon { font-size: 15px; opacity: 0.8; }
+.toggle[aria-checked="true"] .icon { opacity: 1; }
+
+/* The two filters worth a thumb, sitting between the tabs and the results. The
+   70 mm one is the site's whole reason for existing, so it is sized to be hit
+   without aiming. */
+.quickfilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.toggle.big {
+  padding: 10px 18px;
+  font-size: 15px;
+  border-radius: 11px;
+}
+.quickcountry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-flat);
+}
+.quickcountry select {
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink);
+  padding: 8px 10px;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
 
 .selects {
   display: grid;
@@ -473,7 +519,7 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   color: var(--ink);
   background: var(--raised);
   border: 1px solid var(--rule-firm);
-  border-radius: 2px;
+  border-radius: 9px;
   cursor: pointer;
 }
 .chip .icon { font-size: 13px; color: var(--muted-flat); }
@@ -608,6 +654,93 @@ button.ghost.small .icon { font-size: 14px; }
 /* Slightly recessed: the pin is a marker for the eye scanning down the column,
    not a thing to read. */
 .where .icon { font-size: 14px; opacity: 0.75; }
+
+/* The one number worth reading twice when the list is ordered by distance, so
+   it gets the weight the place name does not. Pushed to its own edge of the
+   line: the eye can then run down the distances alone. */
+.away {
+  margin-left: auto;
+  padding-left: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* Typed into, so square, per the by-role rounding rule - but sized to sit
+   comfortably in the verdict box's CTA row beside rounded buttons. */
+.citypick {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  min-width: 200px;
+}
+.citypick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The suggestion menu under it - ours, because the native datalist popover is
+   browser chrome and takes no styling, which stuck out of the newsprint page
+   like a sticker. Anchored to the input, raised paper, hairline edge. */
+.citybox { position: relative; display: inline-block; }
+.citymenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 230px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-radius: 2px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
+}
+.citymenu li { margin: 0; }
+.citymenu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 9px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.citymenu button:hover,
+.citymenu button.on { background: var(--hot-bg); color: var(--hot); }
+
+/* The search box's completions: same menu, full input width, and each row
+   says which kind of thing it is - a name alone doesn't distinguish the
+   theatre called Melbourne from the city. */
+.searchmenu { width: 100%; }
+.citymenu button { display: flex; justify-content: space-between; gap: 12px; }
+.citymenu .kind {
+  flex: none;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted-flat);
+}
+.citymenu button:hover .kind,
+.citymenu button.on .kind { color: var(--hot); }
+
+/* Sits under the result count, where the reason for the order belongs. Same
+   recessed italic as the "how we guessed" line in the Near me section, because
+   it is the same kind of remark. */
+.geostatus {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--muted-flat);
+}
 
 .links {
   grid-column: 2;

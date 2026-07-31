@@ -116,12 +116,206 @@ export function readStored() {
   }
 }
 
+/* A named city gets the same treatment as a chosen country, and for the same
+ * reason: it is coarse and the visitor said it out loud. What stays out of
+ * storage is a measured lat/lon - the line is detected versus declared, not
+ * geographic versus not. */
+const CITY_KEY = "city";
+
+export function readStoredCity() {
+  try {
+    return localStorage.getItem(CITY_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function storeCity(name) {
+  try {
+    if (name) localStorage.setItem(CITY_KEY, name);
+    else localStorage.removeItem(CITY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function storeCountry(country) {
   try {
     if (country) localStorage.setItem(STORAGE_KEY, country);
     else localStorage.removeItem(STORAGE_KEY);
   } catch {
     /* ignore */
+  }
+}
+
+// ------------------------------------------------------- precise position
+
+/* Everything above guesses a country from what the browser already knows, and
+ * costs the visitor nothing.  What follows is the other kind: an actual fix
+ * from navigator.geolocation, which needs permission and is therefore only ever
+ * started by a click.
+ *
+ * The position is deliberately never persisted.  A country is coarse and was
+ * chosen deliberately, so localStorage is fair; a lat/lon is neither. Once
+ * permission is granted the browser remembers it, and maximumAge makes the
+ * second call effectively free - so storing it would buy nothing anyway.
+ */
+
+/**
+ * True when a fix is even possible.
+ *
+ * The secure-context check is not belt and braces: `navigator.geolocation`
+ * exists on a plain-HTTP origin too, and calling it there fails with
+ * PERMISSION_DENIED without ever showing a prompt. Testing over a LAN address
+ * would otherwise offer a button that cannot work and blame the visitor for
+ * refusing. localhost counts as secure, so local development is unaffected.
+ */
+export function canLocate() {
+  return typeof navigator !== "undefined"
+    && "geolocation" in navigator
+    && typeof window !== "undefined"
+    && window.isSecureContext;
+}
+
+/**
+ * What the browser will do if we ask, without asking: "granted" means a call
+ * raises no prompt, "prompt" means it would, "denied" means it cannot succeed.
+ * "unknown" when the Permissions API is unavailable - Safari has been late
+ * here - in which case treat asking as a prompt.
+ */
+export async function permissionState() {
+  try {
+    const status = await navigator.permissions.query({ name: "geolocation" });
+    return status.state;
+  } catch {
+    return "unknown";
+  }
+}
+
+const fix = (pos) => ({
+  lat: pos.coords.latitude,
+  lon: pos.coords.longitude,
+  accuracy: pos.coords.accuracy,
+});
+
+const geoError = (err) => Object.assign(
+  new Error(err.message || String(err.code)),
+  { code: err.code === 1 ? "denied" : err.code === 3 ? "timeout" : "unavailable" });
+
+/**
+ * Ask for a position. Resolves {lat, lon, accuracy}; rejects with a code of
+ * "denied", "unavailable" or "timeout" so the caller can say something useful.
+ *
+ * High accuracy is off on purpose: ranking cinemas needs a town, not a doorway,
+ * and enabling it can spin up GPS for tens of seconds on a phone. A five-minute
+ * cached fix is accepted for the same reason.
+ *
+ * The one-shot timeout can afford to be brisk because failing it costs
+ * nothing: the watch below inherits the wait, and the slow-but-working
+ * provider gets its ten patient seconds there rather than up front.
+ *
+ * A one-shot request is not the whole story, though. getCurrentPosition asks
+ * the OS for a position it may simply not have yet: macOS answers a cold ask
+ * with kCLErrorLocationUnknown (code 2) *immediately*, before Wi-Fi scanning
+ * has had any chance to produce a fix - which reads as "your device couldn't
+ * work out where it is" on a machine that could, given five seconds. So a
+ * failed one-shot falls back to watching: watchPosition keeps the request open
+ * while the provider warms up, the first fix wins, and only a denial - or the
+ * watch itself coming up empty - is reported as failure.
+ */
+export function locate({ timeout = 8000, maximumAge = 300000, patience = 10000 } = {}) {
+  const attempt = new Promise((resolve, reject) => {
+    if (!canLocate()) {
+      reject(Object.assign(new Error("no geolocation"), { code: "unsupported" }));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve(fix(pos)),
+      (err) => {
+        if (err.code === 1) reject(geoError(err));
+        else watchForFix(resolve, reject, err, { patience });
+      },
+      { enableHighAccuracy: false, timeout, maximumAge },
+    );
+  });
+
+  // Browsers have shipped bugs where neither callback ever fires. However the
+  // ask goes, the interface must settle: a button reading "Finding you..."
+  // forever is worse than any honest failure.
+  const deadline = new Promise((_, reject) => {
+    setTimeout(() => reject(Object.assign(
+      new Error("the browser never answered"), { code: "timeout" })),
+      timeout + patience + 3000);
+  });
+  return Promise.race([attempt, deadline]);
+}
+
+/* The warm-up path. High accuracy is on here, unlike the one-shot: this only
+ * runs after the cheap ask failed, so the extra sensors are now worth their
+ * cost - they are the difference between an answer and no answer. */
+function watchForFix(resolve, reject, firstErr, { patience = 12000 } = {}) {
+  let watchId;
+  let settled = false;
+
+  const settle = (fn, arg) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    navigator.geolocation.clearWatch(watchId);
+    fn(arg);
+  };
+
+  // Report the original one-shot error, not a timeout of our own making:
+  // "unavailable" with the OS's message is the truthful account of what failed.
+  const timer = setTimeout(() => settle(reject, geoError(firstErr)), patience);
+
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => settle(resolve, fix(pos)),
+    (err) => {
+      // A denial can arrive mid-watch (the visitor dismisses a prompt they
+      // had left open); that is final. Further code-2 reports are just the
+      // provider still warming up - the timer decides when to stop believing.
+      if (err.code === 1) settle(reject, geoError(err));
+    },
+    { enableHighAccuracy: true, timeout: patience, maximumAge: 0 },
+  );
+}
+
+/**
+ * What to tell the visitor about the precise-location attempt.
+ *
+ * Note this never claims "nothing left your browser" the way the timezone guess
+ * does. Resolving a position usually means the browser consulting its vendor's
+ * location service, and while that is the browser's business rather than ours,
+ * saying otherwise would be a lie by omission.
+ */
+export function explainPosition(status, accuracy = 0) {
+  switch (status) {
+    case "locating":
+      return "Getting your location…";
+    case "located": {
+      const km = Math.round((accuracy || 0) / 1000);
+      const how = km > 1 ? ` Accurate to about ${km} km.` : "";
+      return `Sorted from your location.${how} It stays in this tab — nothing is stored or sent on.`;
+    }
+    case "denied":
+      return "Location permission was refused, so the list is ordered by country instead. "
+        + "Your browser's site settings can undo that.";
+    case "timeout":
+      return "Your device took too long to find a position. Sorted by country instead.";
+    // POSITION_UNAVAILABLE. The browser tried and the device had nothing to
+    // give, which is not the same as the browser refusing - and on a Mac it is
+    // almost always one switch in System Settings rather than anything about
+    // this site. Saying "this browser won't" sent people looking in the wrong
+    // place entirely.
+    case "unavailable":
+      return "Your device couldn't work out where it is — on a Mac that is usually "
+        + "Location Services being off for your browser, under System Settings › "
+        + "Privacy & Security. Sorted by country instead.";
+    case "unsupported":
+      return "This browser can't share a location here. Sorted by country instead.";
+    default:
+      return "";
   }
 }
 

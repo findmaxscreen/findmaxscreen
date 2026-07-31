@@ -47,21 +47,24 @@ function matches(venue, tokens) {
     venue._place.includes(` ${token}`));
 }
 
-/* A stand-in for FTS5's rank: a hit on the theatre name is worth more than one
- * on the town it sits in, and a hit at the start of either beats one in the
- * middle.  Only used for the "Best match" sort. */
-function score(venue, tokens) {
-  let total = 0;
-  for (const token of tokens) {
-    if (venue._name.startsWith(token)) total += 4;
-    else if (venue._name.includes(` ${token}`)) total += 3;
-    else if (venue._place.startsWith(token)) total += 2;
-    else total += 1;
-  }
-  return total;
-}
-
 const COLLATOR = new Intl.Collator("en", { sensitivity: "base", numeric: true });
+
+/**
+ * Great-circle distance between two points, in kilometres.
+ *
+ * The same formula geocode.py uses to sanity-check a match, so the browser and
+ * the geocoder agree about what "near" means.  Accuracy is far better than the
+ * data warrants - half the venues are only located to their city - which is why
+ * the UI rounds hard rather than printing a decimal.
+ */
+export function haversineKm(aLat, aLon, bLat, bLon) {
+  const rad = Math.PI / 180;
+  const dLat = (bLat - aLat) * rad;
+  const dLon = (bLon - aLon) * rad;
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
 
 const SORTS = {
   location: (a, b) =>
@@ -71,6 +74,17 @@ const SORTS = {
     COLLATOR.compare(a.name, b.name),
 
   name: (a, b) => COLLATOR.compare(a.name, b.name),
+
+  // Reads the `_km` search() attaches when an origin is known. 29 venues have
+  // no coordinates at all - Nominatim missed them - and they sort last rather
+  // than counting as distance zero, the same way size treats an unknown area.
+  distance: (a, b) => {
+    const x = a._km, y = b._km;
+    if (x == null && y == null) return SORTS.location(a, b);
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return x - y || COLLATOR.compare(a.name, b.name);
+  },
 
   // Biggest screen first, with unknown areas last rather than treated as zero.
   size: (a, b) => {
@@ -82,20 +96,26 @@ const SORTS = {
   },
 };
 
-export const SORT_NAMES = Object.keys(SORTS).concat("relevance");
+export const SORT_NAMES = Object.keys(SORTS);
 
 /**
  * Filter and sort an indexed venue list.
  *
- * `scope` is the section the user is in and is applied before anything else:
- * "country" pins a country, "film70" pins 15/70 mm film. The filter controls
- * then refine within it.
+ * The caller's section decides the scope - a country, or 15/70 mm film - and
+ * the filter controls refine within it.
+ *
+ * `origin` is {lat, lon} when the visitor has handed over a position, and is
+ * what the "distance" sort needs; without one that sort degrades to "location".
+ *
+ * "location" is not on the sort menu but is still the default and still the
+ * fallback for anything unrecognised: it is the only order that needs nothing
+ * from the visitor, and it is what draws the country headings.
  */
 export function search(venues, criteria = {}) {
   const {
     q = "", country = "", region = "", projector = "", film = "",
     film70 = false, dome = false, commercial = false, ar = "",
-    includeRemoved = false, sort = "location", limit = 0,
+    includeRemoved = false, sort = "location", limit = 0, origin = null,
   } = criteria;
 
   const tokens = tokenize(q);
@@ -118,8 +138,24 @@ export function search(venues, criteria = {}) {
   if (tokens.length) rows = rows.filter((v) => matches(v, tokens));
 
   const total = rows.length;
-  const order = sort === "relevance" && tokens.length
-    ? (a, b) => score(b, tokens) - score(a, tokens) || SORTS.location(a, b)
+
+  // Measured once per row, before sorting rather than inside the comparator:
+  // sort() calls that ~n log n times for a value that depends only on the row.
+  // Only the rows that survived the filters are measured.
+  if (sort === "distance" && origin) {
+    rows = rows.map((v) => ({
+      ...v,
+      _km: v.lat == null || v.lon == null
+        ? null
+        : haversineKm(origin.lat, origin.lon, v.lat, v.lon),
+    }));
+  }
+
+  // The control outlives the fix: a shared ?sort=distance link arrives before
+  // any permission exists, and a denial leaves the choice standing. Falling
+  // back keeps the list in a defensible order instead of an arbitrary one.
+  const order = sort === "distance" && !origin
+    ? SORTS.location
     : SORTS[sort] || SORTS.location;
 
   rows = [...rows].sort(order);
@@ -145,6 +181,75 @@ export function paginate(total, page, size) {
     hasNext: current < pages,
     needed: pages > 1,
   };
+}
+
+/**
+ * Every city we can measure from, as "City, Country" -> {lat, lon}.
+ *
+ * This is the answer to "the device cannot say where you are": the visitor
+ * names a city instead, and a city centroid is honestly all the precision the
+ * distance ranking ever claims - half the venues are only mapped to their
+ * city to begin with. First venue with coordinates wins; the handful of
+ * coordinate-less venues contribute nothing to measure from.
+ */
+export function cityIndex(venues) {
+  const map = new Map();
+  for (const v of venues) {
+    if (v.lat == null || v.lon == null || !v.city) continue;
+    const label = [v.city, v.country].filter(Boolean).join(", ");
+    if (!map.has(label)) map.set(label, { lat: v.lat, lon: v.lon });
+  }
+  return new Map([...map.entries()].sort((a, b) => COLLATOR.compare(a[0], b[0])));
+}
+
+/**
+ * Everything the search box can offer to complete: countries, cities and
+ * theatre names, folded once at build time so each keystroke is a scan of
+ * ~900 short strings rather than a re-fold of them.
+ */
+export function buildSuggestions(venues, countries = []) {
+  const seen = new Set();
+  const items = [];
+  const add = (label, kind) => {
+    const folded = fold(label);
+    const key = kind + ":" + folded;
+    if (!folded || seen.has(key)) return;
+    seen.add(key);
+    items.push({ label, kind, folded });
+  };
+  for (const c of countries) add(c, "country");
+  for (const v of venues) {
+    if (v.removed_at !== null) continue;
+    if (v.city) add([v.city, v.country].filter(Boolean).join(", "), "city");
+    add(v.name, "theatre");
+  }
+  return items;
+}
+
+/**
+ * The completions for what has been typed so far, best first.
+ *
+ * Matching mirrors matches() above - a prefix of the label, or a prefix of any
+ * word in it - so everything offered is something the search would actually
+ * find. Rank: whole-label prefixes beat mid-label hits, then places beat
+ * theatres (a typed "mum" is far more likely Mumbai than a mall multiplex),
+ * then the collator settles the rest.
+ */
+export function suggest(items, text, limit = 8) {
+  const q = fold(text.trim());
+  if (!q) return [];
+  const KIND_RANK = { country: 0, city: 1, theatre: 2 };
+  const hits = [];
+  for (const item of items) {
+    let quality;
+    if (item.folded.startsWith(q)) quality = 0;
+    else if (item.folded.includes(" " + q)) quality = 1;
+    else continue;
+    hits.push([quality, KIND_RANK[item.kind], item]);
+  }
+  hits.sort((a, b) => a[0] - b[0] || a[1] - b[1]
+    || COLLATOR.compare(a[2].label, b[2].label));
+  return hits.slice(0, limit).map((h) => h[2]);
 }
 
 /** Per-country tallies, used by the "is there one near me?" verdict. */

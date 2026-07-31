@@ -3,9 +3,6 @@
 Source of truth for what this project must do and why it is built the way it is.
 Written down so a machine restart, or a fresh session, can't lose the reasoning.
 
-**Picking this up cold? Read `HANDOFF.md` first** — it has the current state and
-the exact remaining steps to publish.
-
 ## Brief (as stated by the user)
 
 Data source: <https://imax.fandom.com/wiki/List_of_IMAX_venues>
@@ -23,6 +20,9 @@ Data source: <https://imax.fandom.com/wiki/List_of_IMAX_venues>
 8. **A legend** explaining which IMAX formats are actually better.
 9. **Three sections** — everything; a "your country" view with the country
    guessed for the visitor; and a plain answer to whether 70 mm exists there.
+   (Rearranged: the country view and the 70 mm answer are one **My Country**
+   section under All venues, and the freed tab is **Near me**. See *The
+   sections*.)
 10. **Refresh is admin-only** — it must not appear on the public site.
 11. **Publish online** — a public site on a custom domain, fast worldwide.
 12. **Deploy daily and unattended**, via GitHub Actions.
@@ -53,7 +53,7 @@ country headings**; a **location pin** on each venue's place line.
 | 6 | Badges and personality | **done** |
 | 7 | Newsprint theme, light + dark, monochrome icons | **done** — inline SVG sprite |
 | 8 | Format legend | **done** — the "IMAX types" tab |
-| 9 | Three sections | **done** — tab bar, `web/geo.js` |
+| 9 | Three sections | **done** — tab bar, `web/geo.js`; regrouped as All venues / Near me / IMAX types |
 | 10 | Refresh is admin-only | **done** — excluded from `dist/` by allow-list |
 | 11 | Publishable online, custom domain | **done** — `./export.py` → `dist/`, 49 KB gzipped |
 | 12 | Daily unattended deploy | **built, not yet live** — `.github/workflows/daily.yml` |
@@ -65,11 +65,10 @@ country headings**; a **location pin** on each venue's place line.
 
 Verified 2026-07-31 against the live wiki: 476 venues, 58 with 15/70 mm film,
 28 dome, 56 countries; 447 geocoded (223 exact, 224 city-level), 160 with a
-cinema website. **158 Python + 33 JavaScript tests**, 22 bundle assertions and
-16 headless smoke checks all pass; `--validate-only` reports zero findings.
+cinema website. **158 Python + 38 JavaScript tests**, 22 bundle assertions and
+30 headless smoke checks all pass; `--validate-only` reports zero findings.
 
-**Not yet done:** the folder rename, `git init`, and the first push. See
-`HANDOFF.md`.
+**Not yet done:** the first push to a public remote.
 
 ## Why "15/70" shows 4 venues and the 70 mm toggle shows 58
 
@@ -349,7 +348,7 @@ venue daily, which would get the project blocked by Nominatim within a week.
 Nothing publishes unless all of it passes; a failure leaves the previous
 deployment live, so a bad run is a no-op rather than an outage.
 
-1. **Unit tests** — 127 Python, 33 JavaScript. Run first, before any network.
+1. **Unit tests** — 127 Python, 38 JavaScript. Run first, before any network.
 2. **Shrink guard** (`sync.py`) — refuses a revision parsing to under 90% of the
    previous venue count.
 3. **Validation** (`sync.py`) — ERROR findings exit non-zero.
@@ -516,6 +515,94 @@ Notes worth keeping:
   stop being recognised.
 - The guess is always shown *as* a guess, with a visible override.
 
+### When a country is not enough
+
+A country answers "what is here"; it cannot answer "what is closest". India has
+one timezone and 13 venues spread across five states, so the guess put Delhi in
+front of a reader standing in Mumbai — alphabetically, `Delhi` before
+`Maharashtra`, under a heading that said *Near me*. No timezone table fixes
+that, and neither would an IP: the distinction needs a real position.
+
+So **Near me** is the one place the site asks. `web/geo.js` gained `canLocate()`,
+`locate()`, `permissionState()` and `explainPosition()` alongside the timezone
+ladder, which is untouched. The rules that keep it honest:
+
+- **Nothing asks on load.** The prompt is raised by tapping the tab or choosing
+  "Nearest first" — a click on a control that names what the position is for.
+  A `?tab=nearme` link checks `navigator.permissions` first and resolves
+  silently *only* if permission was already granted; a stranger following a
+  link is never greeted by a dialog the page has not earned.
+- **A refusal is final for the visit**, and says so. Browsers remember a denial,
+  so re-asking would show the visitor nothing and spin forever.
+- **The position is never persisted.** A country is coarse and deliberately
+  chosen, so `localStorage` is fair; a lat/lon is neither, and `maximumAge`
+  makes a second call free anyway.
+- **Near me never falls back to the alphabet silently.** Without a position it
+  has nothing to rank and says that, rather than presenting a country-ordered
+  list under a heading promising proximity. That failure shipped once with a
+  full green test suite, which is why `smoke.py` now asserts it directly.
+- **The country pin comes off.** Distance is a worldwide question, and the
+  country filter is hidden in that section — pinning it would hide the cinema
+  an hour away across a border.
+
+`enableHighAccuracy` is off deliberately: ranking cinemas needs a town, not a
+doorway, and switching it on can spin up GPS for tens of seconds on a phone.
+Distances are straight lines, and rounded hard — 224 of 476 venues are located
+to their city rather than their door, so a decimal would claim a precision the
+data does not have.
+
+### The location state machine
+
+![Location states: idle moves to locating only on a gesture; locating reaches located via a one-shot ask or the watchPosition warm-up, or fails to denied (code 1), unavailable (code 2), timeout (code 3 or the hard deadline), or unsupported (no API / insecure context). "manual" is a city the visitor named — stored, surviving reload, upgraded silently to a fix on load when permission is already granted. Denied and unsupported are final; unavailable and timeout retry on the next tap.](docs/diagrams/location-states.svg)
+
+The states in `state.geoStatus`, and the rules that hold them together:
+
+- **A gesture starts every ask.** Tapping the Near me tab, choosing "Nearest
+  first", Try again, or "Use my actual position". The one exception is a load
+  where permission is already granted — no prompt can appear, so the link
+  works as its sender meant.
+- **`locating` is two attempts in one**: an 8-second one-shot, then a
+  10-second `watchPosition` warm-up when the one-shot fails with anything but
+  a denial. The whole thing races a hard deadline, so the interface always
+  settles — browsers have shipped bugs where neither callback ever fires.
+- **`manual` is a declared city**, entered by typing one or by accepting
+  "Remember I'm near …" after a fix. Declared, so stored; it survives reload
+  and is silently upgraded to a measured fix on load (5 s patience, no
+  banner flicker, the city stands on failure).
+- **`denied` and `unsupported` are final** for the visit; `unavailable` and
+  `timeout` are weather — the next tab tap retries, costing no prompt.
+- Failures keep the browser's verbatim error message and show it in the
+  banner, beside the retry button and the city input.
+
+### What each location bug taught
+
+Recorded because every one of them looked like something else first:
+
+1. **"Near me" ranked alphabetically and called it distance.** The distance
+   sort was grafted onto the country tab; a Mumbai reader got Delhi first
+   because `Delhi` < `Maharashtra`. All 160+ unit tests were green — they
+   stubbed only the happy path. Hence the smoke checks that assert the
+   *absence* of a claim: no distance labels without a position.
+2. **A cached `app.js` faked a regression.** `python3 -m http.server` sends no
+   `Cache-Control`, the browser kept running a stale build, and the hunt went
+   as far as macOS Location Services before a hard reload explained it. Every
+   server that hands a build to a human now sends `no-store`.
+3. **macOS answers a cold one-shot with `kCLErrorLocationUnknown`
+   immediately** — before Wi-Fi scanning has had any chance to run. Retrying
+   the one-shot repeats the mistake; holding the request open with
+   `watchPosition` is what gives the OS time to warm up.
+4. **Some machines can never produce a fix.** Access points unknown to
+   Apple's positioning database fail with code 2 forever, in every browser,
+   because Chrome and Safari both sit on CoreLocation. No browser API fixes
+   that, which is why the section accepts its own question's answer: the
+   visitor names a city. Detection stays in memory; declaration may be
+   stored — that line, not "geographic or not", is the privacy boundary.
+5. **Feedback must appear where the click happened.** Progress and failure
+   text rendered in a line under the result count, two sections below the
+   buttons that caused them; each message now lives in exactly one place,
+   beside its control, and the under-count line speaks only on tabs that
+   have no banner explaining the order.
+
 ## How it fits together
 
 ```
@@ -542,7 +629,8 @@ imax.fandom.com --MediaWiki API--> sync.py               |
   plus `POST /api/sync` (the manual refresh, shells out to `sync.py`).
 - `./export.py` — validate, write `web/data/venues.json`, build `dist/`.
 - `python3 -m unittest discover -p 'test_*.py'` — 120 Python tests, no network.
-- `node --test test_query.mjs` — 27 tests for the browser-side query logic.
+- `node --test test_query.mjs` — 38 tests for the browser-side query logic,
+  including the distance sort and what it does without a position.
 
 ## Design decisions worth keeping
 
@@ -570,26 +658,91 @@ imax.fandom.com --MediaWiki API--> sync.py               |
 
 ## The sections
 
-Four tabs, not separate pages. Each sets a **scope** and the filter bar refines
+Three tabs, not separate pages. Each sets a **scope** and the filter bar refines
 within it; each also hides the control it already decides, so the heading and
 the filters can never claim different things.
 
-- **All venues** — everything, as before.
-- **Your country** — scoped to the detected country, with a picker. Opens with
-  a count of what is there and an italic line saying how the guess was made.
+- **All venues** — everything, and the home of the **My Country** section.
+- **Near me** — ranked by distance from an actual position. See *Locating the
+  visitor*; it is the only part of the site that asks for one.
 - **IMAX types** — the format guide. It was a collapsed `<details>` buried under
   the filters, which is a poor home for the one thing explaining what every
   badge means; it now has a tab of its own, and the whole filter/result
   apparatus is hidden while it is open.
-- **70 mm film** — scoped to `has_70mm`, and opens with a plain Yes/No to "is
-  there 15/70 mm film IMAX in <your country>?". When the answer is no, it names
-  the nearest countries in the same region that do have one — region is the only
-  geography this dataset carries, since the wiki has no coordinates.
 
-The 70 mm section ends with a call to action rather than leaving you to work
-out which control narrows the list: "Want to see just those?" sets the country
-filter, or the region filter when the answer was no, and turns into "Show all 58
-worldwide" once something is narrowed.
+**It was four tabs.** Two of them were about a country and asked their questions
+separately: "70 mm film" opened with a Yes/No to *is there 15/70 mm film IMAX in
+your country?*, and "Your country" opened with a count of what was there. Asked
+one after the other about the same place they are plainly one section, and
+splitting them meant reading a country's headline twice to get both halves. They
+are now one **My Country** box under All venues, in the order question → answer
+→ detail → the wider count, with the 15/70 verdict leading because it is the one
+that decides whether to get on a plane.
+
+That freed the "Near me" name for the thing it always sounded like, which is the
+whole point: a country tab called *Near me* served a Mumbai reader Delhi.
+
+`?tab=country` and `?tab=film70` links were shared before this, so
+`TAB_ALIASES` maps them to `nearme` and `all` rather than letting them fall
+through to the default; `smoke.py` asserts both still land where intended.
+
+**The quick filters** — the 70 mm toggle and the country select — sit directly
+under the search box rather than inside the collapsed panel below it, which is
+now labelled *More filters*. Searching and filtering are the same gesture, and
+an earlier arrangement above the verdict left the reader reaching past a
+paragraph of prose to get from one to the other. 70 mm
+had a tab of its own until it turned out to be a filter wearing a tab's
+clothes, and burying the primary filter of a site built to find 15/70 mm film
+behind a disclosure triangle was always the wrong shape. There is now **one**
+country control, not two: the old picker said "your country" while the filter
+below said "Country", and they were the same question asked twice.
+
+A bare visit defaults that country to the detected one, so the site opens on
+what is near you. The default is decided by the `country` parameter alone, not
+by whether the URL has one at all:
+
+| URL | Shows |
+|---|---|
+| `/` | your country — and the address bar **stays** `/` |
+| `?country=Japan` | Japan |
+| `?country=any` | everywhere |
+| `?film70=1` | 15/70 mm in your country, and reloads to the same thing |
+
+A guessed country is never written into the URL, because it is not something
+the visitor did; that is what keeps the front page's own address clean. The
+corollary is that "everywhere" has to be said out loud as `country=any`, or a
+reload of a widened list would spring back to wherever you are. The
+`FILTERING BY` chip makes the scoping visible and removable in one tap.
+
+**The masthead is the way back.** Tapping *Find Max Screen* clears every filter,
+returns to All venues and page one, and puts the country back to the guess
+rather than to Anywhere — landing on exactly the state, and the URL, of a first
+visit. It is a real anchor to `./` so middle-click still opens a tab; the plain
+left-click is intercepted and does it in place. It is styled as no kind of link
+at all, in any state: a masthead is already understood to be the way home, and
+dressing it as body copy made the one fixed piece of furniture on the page
+twitch under the pointer.
+
+My Country ends with a call to action rather than leaving you to work out which
+control narrows the list: "Want to see just those?" sets the country *and* the
+70 mm toggle — setting only the country handed back all 13 Indian venues when
+the reader had just been told 1 of them runs film — or the region filter when
+the answer was no, and turns into "Show all 58 worldwide" once narrowed.
+
+**The toggles are switches, not checkboxes.** The whole pill is the hit target,
+which is what a thumb expects; `role="switch"` and `aria-checked` carry the
+state now that there is no input to hold it. `isOn()` / `setOn()` in `app.js`
+are the only things that touch that attribute, because the old `.checked` reads
+were scattered across eight call sites.
+
+**The sort menu** lost two entries. "Location" is gone as a *name*, not as an
+order — it is still the default, still the fallback for anything unrecognised,
+and still what draws the country headings, so the control has to be able to sit
+on it or the menu would misreport the list; it is labelled "Country & city" for
+what the reader can actually see, which leaves "Near me" the only entry
+offering proximity. "Best match" is gone outright, along with `score()`: it
+ranked by a guess at what you meant, and the reader is better placed to judge
+that.
 
 **Paginated** at 50 per page — 476 rows in one scroll is a wall. The controls
 are rendered **both** beside the result count and under the list: a pager only
