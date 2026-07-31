@@ -1151,15 +1151,17 @@ function setGeoStatus(status) {
  * count, which is where someone looking at the rows themselves will be. */
 function renderGeoStatus() {
   const box = $("geostatus");
-  // "locating" is deliberately absent here: transient progress belongs in the
-  // banner beside the button that started it, not two sections further down.
-  let text = state.geoStatus !== "locating" && (state.tab === "nearme" || state.origin)
-    ? explainPosition(state.geoStatus, state.geoAccuracy)
-    : "";
-  if (state.geoStatus === "manual" && state.origin
-      && (state.tab === "nearme" || CONTROLS.sort.value === "distance")) {
-    text = `Distances measured from ${state.originCity} \u2014 a city you named, `
-      + "not a detected position. Nothing was stored but the name.";
+  // On the Near me tab this line says nothing at all: the banner up there
+  // holds every location control and explains itself beside them, and the
+  // same sentence repeated down here reads as a message from somewhere else.
+  // The line exists for the other tabs, where "Nearest first" can be driving
+  // the order with no banner anywhere explaining why.
+  let text = "";
+  if (state.tab !== "nearme" && state.origin && state.geoStatus !== "locating") {
+    text = state.geoStatus === "manual"
+      ? `Distances measured from ${state.originCity} \u2014 a city you named, `
+        + "not a detected position. Nothing was stored but the name."
+      : explainPosition(state.geoStatus, state.geoAccuracy);
   }
   box.textContent = text;
   box.hidden = !text;
