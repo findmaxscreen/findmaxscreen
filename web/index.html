@@ -206,7 +206,11 @@
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
       <span id="thememode">Auto</span>
     </button>
-    <h1><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</h1>
+    <!-- A real link to the site root, so middle-click and "open in new tab"
+         behave. app.js intercepts the plain left-click and clears everything in
+         place instead, which is the same destination without the reload. -->
+    <h1><a href="./" id="home" title="Back to the start — clears every filter"
+      ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</a></h1>
     <p class="tagline" id="tagline">Loading…</p>
 
     <details class="why">

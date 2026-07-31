@@ -963,6 +963,24 @@ function wire() {
 
   $("reset").addEventListener("click", () => { resetFilters(); update(); });
 
+  /* The masthead is the way back to the start, which is what a title in that
+   * position promises. It lands on the same state a first visit does - every
+   * filter off, All venues, page one, and the country back to the guess rather
+   * than to Anywhere, since that guess is part of the front page rather than
+   * something the visitor applied.
+   *
+   * Modified clicks are left alone so the href does its job: a cmd-click that
+   * silently reset the page in the current tab instead of opening a new one
+   * would be the link lying about being a link. */
+  $("home").addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    resetFilters();
+    CONTROLS.country.value = state.country;
+    setTab("all");
+    window.scrollTo({ top: 0 });
+  });
+
   document.addEventListener("keydown", (e) => {
     if (e.key === "/" && document.activeElement !== CONTROLS.q) {
       e.preventDefault();

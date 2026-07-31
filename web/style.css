@@ -94,6 +94,29 @@ a:hover { text-decoration-thickness: 2px; }
   letter-spacing: -0.015em;
   color: var(--ink-strong);
 }
+/* The title is a link home, and looks like nothing of the sort in every state:
+   no accent colour, no underline, not even on hover. A masthead is already
+   understood to be the way back, and dressing it as body-copy link made the one
+   piece of fixed furniture on the page twitch under the pointer.
+
+   The flex layout lives on the anchor now, since it is what actually holds the
+   icon and the words. The focus ring stays - it appears only for keyboard
+   navigation, where there is no other way to tell the title is a target. */
+.masthead h1 a,
+.masthead h1 a:visited,
+.masthead h1 a:hover,
+.masthead h1 a:active {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: inherit;
+  text-decoration: none;
+}
+.masthead h1 a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
 .masthead h1 .icon {
   font-size: 0.82em;
   stroke-width: 1.5;
