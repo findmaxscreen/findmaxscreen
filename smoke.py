@@ -119,6 +119,16 @@ def serving(directory: Path):
         def log_message(self, *args):
             pass
 
+        # SimpleHTTPRequestHandler sends Last-Modified and nothing else, so a
+        # browser is free to apply heuristic freshness and keep serving app.js
+        # from an earlier build. That cost an afternoon once: a bug had been
+        # fixed, the page kept the old behaviour, and the hunt went looking at
+        # the operating system. --keep-open hands this server to a human, so it
+        # has to be honest about freshness. serve.py already does the same.
+        def end_headers(self):
+            self.send_header("Cache-Control", "no-store, must-revalidate")
+            super().end_headers()
+
     handler = partial(Quiet, directory=str(directory))
     # Port 0: the kernel picks one and the server holds it atomically. Probing
     # for a free port first and binding it after leaves a window for a race.

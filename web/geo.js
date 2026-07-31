@@ -176,8 +176,13 @@ export async function permissionState() {
  * High accuracy is off on purpose: ranking cinemas needs a town, not a doorway,
  * and enabling it can spin up GPS for tens of seconds on a phone. A five-minute
  * cached fix is accepted for the same reason.
+ *
+ * The timeout is generous because the failure it produces is a lie: a desktop
+ * doing a cold Wi-Fi fix can take well over ten seconds, and telling that
+ * visitor their device "took too long" reads as a fault when they were merely
+ * being made to wait. Better to wait longer and be right.
  */
-export function locate({ timeout = 8000, maximumAge = 300000 } = {}) {
+export function locate({ timeout = 15000, maximumAge = 300000 } = {}) {
   return new Promise((resolve, reject) => {
     if (!canLocate()) {
       reject(Object.assign(new Error("no geolocation"), { code: "unsupported" }));
