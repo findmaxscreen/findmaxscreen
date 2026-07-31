@@ -47,20 +47,6 @@ function matches(venue, tokens) {
     venue._place.includes(` ${token}`));
 }
 
-/* A stand-in for FTS5's rank: a hit on the theatre name is worth more than one
- * on the town it sits in, and a hit at the start of either beats one in the
- * middle.  Only used for the "Best match" sort. */
-function score(venue, tokens) {
-  let total = 0;
-  for (const token of tokens) {
-    if (venue._name.startsWith(token)) total += 4;
-    else if (venue._name.includes(` ${token}`)) total += 3;
-    else if (venue._place.startsWith(token)) total += 2;
-    else total += 1;
-  }
-  return total;
-}
-
 const COLLATOR = new Intl.Collator("en", { sensitivity: "base", numeric: true });
 
 /**
@@ -110,17 +96,20 @@ const SORTS = {
   },
 };
 
-export const SORT_NAMES = Object.keys(SORTS).concat("relevance");
+export const SORT_NAMES = Object.keys(SORTS);
 
 /**
  * Filter and sort an indexed venue list.
  *
- * `scope` is the section the user is in and is applied before anything else:
- * "country" pins a country, "film70" pins 15/70 mm film. The filter controls
- * then refine within it.
+ * The caller's section decides the scope - a country, or 15/70 mm film - and
+ * the filter controls refine within it.
  *
  * `origin` is {lat, lon} when the visitor has handed over a position, and is
  * what the "distance" sort needs; without one that sort degrades to "location".
+ *
+ * "location" is not on the sort menu but is still the default and still the
+ * fallback for anything unrecognised: it is the only order that needs nothing
+ * from the visitor, and it is what draws the country headings.
  */
 export function search(venues, criteria = {}) {
   const {
@@ -162,15 +151,12 @@ export function search(venues, criteria = {}) {
     }));
   }
 
-  let order = SORTS[sort] || SORTS.location;
-  if (sort === "relevance" && tokens.length) {
-    order = (a, b) => score(b, tokens) - score(a, tokens) || SORTS.location(a, b);
-  } else if (sort === "distance" && !origin) {
-    // The control outlives the fix: a shared ?sort=distance link arrives before
-    // any permission exists, and a denial leaves the choice standing. Falling
-    // back keeps the list in a defensible order instead of an arbitrary one.
-    order = SORTS.location;
-  }
+  // The control outlives the fix: a shared ?sort=distance link arrives before
+  // any permission exists, and a denial leaves the choice standing. Falling
+  // back keeps the list in a defensible order instead of an arbitrary one.
+  const order = sort === "distance" && !origin
+    ? SORTS.location
+    : SORTS[sort] || SORTS.location;
 
   rows = [...rows].sort(order);
   if (limit > 0 && rows.length > limit) rows = rows.slice(0, limit);

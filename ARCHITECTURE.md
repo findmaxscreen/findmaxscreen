@@ -1,8 +1,7 @@
 # Architecture
 
 How FindMaxScreen is put together, and why. `REQUIREMENTS.md` carries the full
-brief and the reasoning behind individual decisions; `HANDOFF.md` has the current
-state and what is left to do.
+brief, the reasoning behind individual decisions, and the current status.
 
 Diagrams are SVG committed alongside this file, so they render wherever the
 Markdown is read and never depend on anything outside the repository.
@@ -60,8 +59,16 @@ consequences worth stating plainly:
 - **Nothing to keep running.** A failed deploy leaves the previous one serving.
 - **Nothing leaks.** The page makes exactly one request, for its own data file.
   The visitor's country is guessed from the browser's IANA timezone, so no IP is
-  sent anywhere and no permission prompt appears. Outbound links fire only when
-  a visitor clicks one.
+  sent anywhere and nothing is asked of them. Outbound links fire only when a
+  visitor clicks one.
+
+  The **Near me** section is the one exception, and it is opt-in: ranking
+  venues by distance needs a real position, which only
+  `navigator.geolocation` can give. Nothing asks on load — the permission
+  prompt is raised by tapping the tab, or by choosing "Nearest first", both of
+  which name what the position is for. The fix is held in memory for the visit
+  and never stored; the only thing that outlives it is the country, which was
+  already the case. Every other section works without it.
 
 ---
 
@@ -161,8 +168,8 @@ theatres.sqlite3   the data and its entire history — committed on purpose
 
 web/index.html     page shell and the inline icon sprite
 web/app.js         rendering, tabs, filters, links
-web/query.js       search, filter, sort, paginate — pure functions, tested
-web/geo.js         country detection from timezone, no network
+web/query.js       search, filter, sort, distance, paginate — pure, tested
+web/geo.js         country from timezone (no network); position on request
 web/admin.html     local-only tooling, never published
 
 test_sync.py       wikitext parsing

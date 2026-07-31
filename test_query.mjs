@@ -157,15 +157,6 @@ test("location sort groups by country then city", () => {
   assert.deepEqual(countries, [...countries].sort());
 });
 
-test("relevance prefers a name hit over a place hit", () => {
-  const rows = search(FIXTURES, { q: "dome", sort: "relevance" }).venues;
-  assert.equal(rows[0].name, "Dome 70");
-});
-
-test("relevance falls back to location when there is no query", () => {
-  assert.deepEqual(names({ sort: "relevance" }), names({ sort: "location" }));
-});
-
 test("an unknown sort does not throw", () => {
   assert.deepEqual(names({ sort: "nonsense" }), names({ sort: "location" }));
 });
