@@ -3,11 +3,12 @@
 A searchable list of every IMAX theatre, built to answer one question the
 official channels won't: **which ones still run 15/70 mm film?**
 
-Christopher Nolan has done more than anyone to keep film projection alive, and
-IMAX still offers no standing way to find the theatres that run it — their own
-[theatre finder](https://www.imax.com/theatre/finder) searches by location and
-nothing else, and the theatre pages behind it never mention film, screen size or
-aspect ratio. When a big title opens, IMAX posts a one-off list of participating
+Christopher Nolan and Denis Villeneuve have both done more than anyone to keep
+film projection alive, and IMAX still offers no standing way to find the
+theatres that run it — their own [theatre
+finder](https://www.imax.com/theatre/finder) searches by location and nothing
+else, and the theatre pages behind it never mention film, screen size or aspect
+ratio. When a big title opens, IMAX posts a one-off list of participating
 70 mm venues, and then it goes stale. This is the standing list.
 
 **476 venues · 56 countries · 58 still running 15/70 mm film.**
