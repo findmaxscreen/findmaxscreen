@@ -10,8 +10,10 @@
 # an empty database would lose that history *and* re-geocode every venue daily,
 # which would get us blocked by Nominatim inside a week.
 #
-# Nothing here needs a secret. GitHub Pages is published with the built-in
-# GITHUB_TOKEN.
+# GitHub Pages is published with the built-in GITHUB_TOKEN. The one secret this
+# job needs is a Cloudflare API token, scoped to nothing but Cache Purge on the
+# findmaxscreen.com zone: Cloudflare's CDN now fronts Pages with a one-month edge
+# TTL, so a deploy is not live until the edge is told to drop what it is holding.
 
 name: daily
 
@@ -125,17 +127,42 @@ jobs:
       - id: deploy
         uses: actions/deploy-pages@v4
 
+      # Cloudflare holds this site for a month, so the deploy above is invisible
+      # until the edge is purged. Deliberately fails the run on error: the deploy
+      # has already happened by now, and a purge that quietly no-ops would pin
+      # yesterday's data at the edge for weeks. A red tick is the only signal on
+      # a job nobody watches. Eleven files, so purge_everything is the honest
+      # option and stays well inside the free rate limit.
+      - name: Purge the Cloudflare cache
+        env:
+          CF_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          curl -sS --fail-with-body \
+            -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE}/purge_cache" \
+            -H "Authorization: Bearer ${CF_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}'
+          echo
+          echo "  ok   edge cache purged"
+
       # ---- gate 4: it is actually live -------------------------------------
+      # Every URL carries a per-run query string. page_url is the Cloudflare-
+      # fronted apex, and Cloudflare's cache key includes the query string, so
+      # this is guaranteed a MISS — the check tests the deploy, not how fast the
+      # purge propagated. GitHub Pages ignores query strings, so the origin
+      # response is unchanged.
       - name: Verify the deployment
         run: |
           URL="${{ steps.deploy.outputs.page_url }}"
+          Q="?ci=${{ github.run_id }}"
           echo "checking $URL"
-          curl -sSfL "$URL" | grep -q "FindMaxScreen" \
+          curl -sSfL "${URL}${Q}" | grep -q "FindMaxScreen" \
             && echo "  ok   homepage serves"
           EXPECTED=$(python3 -c "import json;print(json.load(open('dist/data/venues.json'))['stats']['venues'])")
-          LIVE=$(curl -sSfL "${URL}data/venues.json" | python3 -c "import json,sys;print(json.load(sys.stdin)['stats']['venues'])")
+          LIVE=$(curl -sSfL "${URL}data/venues.json${Q}" | python3 -c "import json,sys;print(json.load(sys.stdin)['stats']['venues'])")
           test "$EXPECTED" = "$LIVE" \
             && echo "  ok   live data has $LIVE venues"
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' "${URL}admin.html")
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "${URL}admin.html${Q}")
           test "$CODE" = "404" \
             && echo "  ok   admin.html is not published (HTTP $CODE)"

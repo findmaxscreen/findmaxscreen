@@ -186,18 +186,158 @@ visit, Pages' 100 GB/month soft cap is ~2 million visits; the repo is 516 KB
 against a 1 GB limit; the site is not commercial. The real difference is *tens
 of milliseconds* of TTFB, concentrated in India, South-East Asia, South America
 and Africa. Against that, GitHub Pages needs **zero secrets and one account**,
-which matters more for a job nobody watches. If cache-header control is ever
-wanted, putting Cloudflare's free CDN in front of Pages restores it without
-moving the hosting.
+which matters more for a job nobody watches. That last clause — if cache-header
+control is ever wanted, Cloudflare's free CDN in front of Pages restores it
+without moving the hosting — has since been exercised. See below.
 
 The domain is **findmaxscreen.com**, held in `web/CNAME` and shipped inside the
 artifact — Pages reads it from there and drops the custom domain on any deploy
 that omits it, so it cannot live in repo settings alone.
 
-Two consequences accepted knowingly: the repo must be **public** on the free
-plan (so `theatres.sqlite3` and `snapshots/` are public too — fine for CC BY-SA data
-already being republished), and Pages serves a fixed `max-age=600`, so a visitor
-may see yesterday's data for up to ten minutes after a deploy.
+One consequence accepted knowingly: the repo must be **public** on the free plan,
+so `theatres.sqlite3` and `snapshots/` are public too — fine for CC BY-SA data
+already being republished.
+
+### Cloudflare fronts Pages
+
+The prediction above was that a CDN in front would be worth *tens of
+milliseconds*, concentrated in poorly-served regions. **Measurement said
+otherwise, and it is the reason this was done.** From Chennai, 2026-07-31:
+
+| Object state at Fastly | Server-side TTFB |
+|---|---|
+| edge HIT | **25–32 ms** |
+| edge revalidating (`age: 0`) | **240–300 ms** |
+
+Geography was never the problem — Pages' Fastly layer already serves this site
+from a Chennai POP. The problem was the fixed **`max-age=600`** Pages hard-codes
+and offers no way to change: every ten minutes each POP drops the object and the
+next visitor pays a ~250 ms origin round-trip. On a low-traffic site that is not
+an edge case, since a lone visitor in a ten-minute window *always* repopulates
+the cache. And the content behind that TTL changes every few days at most —
+`sync.py` no-ops on an unmoved revision. A ten-minute TTL on fortnightly data was
+the whole inefficiency.
+
+So the edge now holds objects for **one month** with a **ten-minute browser TTL**,
+and `daily.yml` purges on every deploy. HTTP/3, which Pages does not offer, came
+along with it.
+
+**Brotli did not, in any meaningful amount** — worth recording because it was
+predicted to matter and does not. Cloudflare compresses automatically now, but at
+a fast, low-quality level, so measured against the edge on 2026-07-31:
+`venues.json` was 27,656 B gzipped against 26,670 B Brotli — **3.6%**, not the
+~13% assumed. Worse, when a real browser offers `gzip, deflate, br, zstd` the edge
+picks *zstd* for HTML at 7,449 B, larger than either gzip (7,059 B) or Brotli
+(6,974 B). Compression is a wash. The TTL is the whole win; do not re-litigate this
+on compression grounds.
+
+**SSL mode is `Full`, not `Full (strict)`, and that is deliberate.** Proxying stops
+GitHub renewing its Let's Encrypt certificate (mechanism below), so the Pages
+certificate will lapse after **2026-10-29** and its settings page will show a
+certificate error. **This is expected and must not be "fixed."** Visitors never
+see that certificate; they get Cloudflare's auto-renewing Universal SSL. It
+governs only the invisible Cloudflare→GitHub hop, where under `Full` an expired
+certificate is a non-event. Under `Full (strict)` the same expiry is a hard
+`526` — the site *down* — avoidable only by grey-clouding DNS every ~60 days, a
+manual chore whose failure mode is a silent countdown to an outage. What `Full`
+gives up is authentication of one hop carrying a public, cookieless, auth-less
+static site.
+
+Automating that renewal dance in `daily.yml` was considered and rejected: it needs
+the API token widened from *Cache Purge* to *DNS Edit*, putting a credential that
+can rewrite the whole zone into CI — a worse risk than the one it fixes.
+
+**`Full (strict)` is not reachable on this plan, and the reason is worth recording
+so it is not re-investigated.** Note first that GitHub's certificate is not vestigial
+under strict — Cloudflare presents SNI `findmaxscreen.com` on *every* origin fetch
+and validates what comes back, so that certificate is load-bearing forever. Renewal
+breaks because GitHub health-checks public DNS before provisioning: proxied, the
+domain resolves to Cloudflare's IPs, GitHub reads that as a domain no longer pointing
+at Pages, and never attempts renewal.
+
+The clean fix is to stop asking GitHub for a `findmaxscreen.com` certificate at all
+and target `findmaxscreen.github.io`, whose `*.github.io` wildcard GitHub renews
+forever. That needs an Origin Rule overriding the `Host` header (which also rewrites
+SNI) — and **Host header, SNI and DNS-record overrides are all Enterprise-only**. A
+plain proxied CNAME to `findmaxscreen.github.io` does not substitute: the CNAME target
+only selects the IP, while `Host` and SNI stay `findmaxscreen.com`. Pages accepts one
+custom domain and allows no certificate upload, so there is no remaining angle.
+
+The only free-tier routes to a validated origin hop both move the hosting — a Worker
+fetching `findmaxscreen.github.io` (public-CA validated), or publishing to Workers
+Static Assets so no origin hop exists. The second is the first without the extra hop;
+neither is worth it to authenticate a public, cookieless, credential-free static site.
+
+**The mode must be pinned to `Full` explicitly — never left on "Automatic
+SSL/TLS."** Automatic mode rescans the origin roughly monthly and *upgrades* to
+`Full (Strict)` whenever it finds a valid certificate, and by Cloudflare's own
+documentation it **never downgrades**: "if your origin certificate expires, the
+encryption mode will not change from Full (strict) to Full." On this zone that
+composes into a timed outage — a scan sees GitHub's still-valid certificate and
+upgrades to Strict, proxying then prevents renewal, and on expiry every visitor
+gets a `526` with nothing left to correct it. Automatic mode would arrive at the
+exact failure rejected above without anyone having chosen it. If the SSL/TLS
+screen ever shows a "Next scan" date again, it has reverted; set it back to `Full`.
+
+**The price is the "zero secrets" property above.** `daily.yml` now carries
+`CLOUDFLARE_API_TOKEN` (scoped to Cache Purge on this zone alone) and
+`CLOUDFLARE_ZONE_ID`. It also puts configuration outside version control, which
+is why these must stay **off** in the dashboard:
+
+- **Bot Fight Mode** — challenges non-browser clients. `robots.txt` deliberately
+  allows crawling of `data/venues.json` and the JSON-LD advertises it as a public
+  `Dataset`; it would also break this workflow's own `curl` gate. (Note the irony
+  logged further down: a Cloudflare challenge is exactly why imax.com is unusable
+  to us.)
+- **Hotlink Protection** — `index.html` cites `og.png` and `apple-touch-icon.png`
+  as absolute URLs; breaking them breaks link previews, and Apple caches the
+  failure per URL.
+- **Rocket Loader** — `app.js` is an ES module; Rocket Loader breaks module
+  semantics.
+- **Custom error pages** — the deploy gate asserts `admin.html` is a **404**. A
+  catch-all returning 200 turns that gate green when it should be red.
+
+Those four are default-off, and the security navigation has been moving — as of
+July 2026 there is no `Security → Bots` section and no `Custom Pages` entry where
+the docs put them. **Do not hunt for the toggles; test the behaviour**, which is
+what actually matters and survives the next reorganisation:
+
+```bash
+# no bot challenge — every one of these must be 200
+for ua in "Googlebot/2.1" "facebookexternalhit/1.1" "python-requests/2.31.0" ""; do
+  curl -sS -o /dev/null -w "$ua -> %{http_code}\n" -A "$ua" \
+    https://findmaxscreen.com/data/venues.json
+done
+# no hotlink protection — foreign referer must still get the image
+curl -sS -o /dev/null -w 'og.png -> %{http_code}\n' \
+  -e 'https://www.facebook.com/' https://findmaxscreen.com/og.png
+# no custom error page — 404 body must be GitHub's, not Cloudflare's
+curl -sS https://findmaxscreen.com/admin.html | grep -qi cloudflare \
+  && echo 'REGRESSION: Cloudflare error page' || echo 'ok'
+```
+
+#### The dashboard as of July 2026
+
+Cloudflare's UI moved faster than its own documentation while this was being set
+up. Recorded so the next person does not hunt for controls that no longer exist:
+
+- **There is no Brotli toggle.** Compression is automatic from the client's
+  `Accept-Encoding`. Nothing to enable; see the measurement above for what it is
+  worth.
+- **`Speed → Optimization` is gone**; those toggles live under `Speed → Settings`.
+  HTTP/3 and 0-RTT are under `Network`.
+- **Smart Tiered Cache is no longer a standalone toggle** — it is inside
+  **Smart Shield**, whose free base package is exactly Smart Tiered Cache plus
+  Connection Reuse. Both are origin-side networking and neither rewrites HTML or
+  scripts, so the Rocket Loader concern does not apply to it. **Take only the free
+  base**: the same onboarding offers Argo Smart Routing, Health Checks and
+  volumetric DDoS, which are billed.
+- **`Cache Rules` and `Cache Response Rules` are now separate rule types.** Ours is
+  a **Cache Rule** — that is the only type with cache eligibility and the Edge/
+  Browser TTL overrides, and it runs in the request phase. Cache Response Rules run
+  after the origin replies and exist to repair badly-behaved origin headers, which
+  Pages does not send. Note for debugging: **where the two conflict, Cache Response
+  Rules win**, so check for one of those before assuming the Cache Rule is at fault.
 
 **`theatres.sqlite3` is committed on purpose.** It carries the entire audit trail —
 soft-deletes, `venue_changes`, first-seen dates — plus all 476 geocodes. A job

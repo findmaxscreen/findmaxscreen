@@ -70,6 +70,11 @@ Live at **[findmaxscreen.com](https://findmaxscreen.com)**, published by
 daily. Most days the wiki revision hasn't moved and the run is a
 single HTTP request.
 
+Cloudflare's free CDN fronts the apex, holding the site at the edge for a month
+and purging on each deploy — Pages hard-codes a ten-minute TTL, which on a
+low-traffic site meant most visitors paid a ~250 ms origin round-trip. See
+[REQUIREMENTS.md](REQUIREMENTS.md) for the measurements and the SSL trade-off.
+
 `theatres.sqlite3` is committed to this repository deliberately. It holds the entire
 audit trail — soft-deletes, `venue_changes`, first-seen dates — and every
 geocode. A job starting from an empty database would lose that history *and*
