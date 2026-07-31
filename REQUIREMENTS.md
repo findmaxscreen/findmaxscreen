@@ -551,6 +551,58 @@ Distances are straight lines, and rounded hard — 224 of 476 venues are located
 to their city rather than their door, so a decimal would claim a precision the
 data does not have.
 
+### The location state machine
+
+![Location states: idle moves to locating only on a gesture; locating reaches located via a one-shot ask or the watchPosition warm-up, or fails to denied (code 1), unavailable (code 2), timeout (code 3 or the hard deadline), or unsupported (no API / insecure context). "manual" is a city the visitor named — stored, surviving reload, upgraded silently to a fix on load when permission is already granted. Denied and unsupported are final; unavailable and timeout retry on the next tap.](docs/diagrams/location-states.svg)
+
+The states in `state.geoStatus`, and the rules that hold them together:
+
+- **A gesture starts every ask.** Tapping the Near me tab, choosing "Nearest
+  first", Try again, or "Use my actual position". The one exception is a load
+  where permission is already granted — no prompt can appear, so the link
+  works as its sender meant.
+- **`locating` is two attempts in one**: an 8-second one-shot, then a
+  10-second `watchPosition` warm-up when the one-shot fails with anything but
+  a denial. The whole thing races a hard deadline, so the interface always
+  settles — browsers have shipped bugs where neither callback ever fires.
+- **`manual` is a declared city**, entered by typing one or by accepting
+  "Remember I'm near …" after a fix. Declared, so stored; it survives reload
+  and is silently upgraded to a measured fix on load (5 s patience, no
+  banner flicker, the city stands on failure).
+- **`denied` and `unsupported` are final** for the visit; `unavailable` and
+  `timeout` are weather — the next tab tap retries, costing no prompt.
+- Failures keep the browser's verbatim error message and show it in the
+  banner, beside the retry button and the city input.
+
+### What each location bug taught
+
+Recorded because every one of them looked like something else first:
+
+1. **"Near me" ranked alphabetically and called it distance.** The distance
+   sort was grafted onto the country tab; a Mumbai reader got Delhi first
+   because `Delhi` < `Maharashtra`. All 160+ unit tests were green — they
+   stubbed only the happy path. Hence the smoke checks that assert the
+   *absence* of a claim: no distance labels without a position.
+2. **A cached `app.js` faked a regression.** `python3 -m http.server` sends no
+   `Cache-Control`, the browser kept running a stale build, and the hunt went
+   as far as macOS Location Services before a hard reload explained it. Every
+   server that hands a build to a human now sends `no-store`.
+3. **macOS answers a cold one-shot with `kCLErrorLocationUnknown`
+   immediately** — before Wi-Fi scanning has had any chance to run. Retrying
+   the one-shot repeats the mistake; holding the request open with
+   `watchPosition` is what gives the OS time to warm up.
+4. **Some machines can never produce a fix.** Access points unknown to
+   Apple's positioning database fail with code 2 forever, in every browser,
+   because Chrome and Safari both sit on CoreLocation. No browser API fixes
+   that, which is why the section accepts its own question's answer: the
+   visitor names a city. Detection stays in memory; declaration may be
+   stored — that line, not "geographic or not", is the privacy boundary.
+5. **Feedback must appear where the click happened.** Progress and failure
+   text rendered in a line under the result count, two sections below the
+   buttons that caused them; each message now lives in exactly one place,
+   beside its control, and the under-count line speaks only on tabs that
+   have no banner explaining the order.
+
 ## How it fits together
 
 ```
