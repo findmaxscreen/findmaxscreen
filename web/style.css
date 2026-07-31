@@ -609,6 +609,28 @@ button.ghost.small .icon { font-size: 14px; }
    not a thing to read. */
 .where .icon { font-size: 14px; opacity: 0.75; }
 
+/* The one number worth reading twice when the list is ordered by distance, so
+   it gets the weight the place name does not. Pushed to its own edge of the
+   line: the eye can then run down the distances alone. */
+.away {
+  margin-left: auto;
+  padding-left: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* Sits under the result count, where the reason for the order belongs. Same
+   recessed italic as the "how we guessed" line in the Near me section, because
+   it is the same kind of remark. */
+.geostatus {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--muted-flat);
+}
+
 .links {
   grid-column: 2;
   align-self: start;

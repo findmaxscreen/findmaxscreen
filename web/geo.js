@@ -125,6 +125,99 @@ export function storeCountry(country) {
   }
 }
 
+// ------------------------------------------------------- precise position
+
+/* Everything above guesses a country from what the browser already knows, and
+ * costs the visitor nothing.  What follows is the other kind: an actual fix
+ * from navigator.geolocation, which needs permission and is therefore only ever
+ * started by a click.
+ *
+ * The position is deliberately never persisted.  A country is coarse and was
+ * chosen deliberately, so localStorage is fair; a lat/lon is neither. Once
+ * permission is granted the browser remembers it, and maximumAge makes the
+ * second call effectively free - so storing it would buy nothing anyway.
+ */
+
+/** True when a fix is even possible: needs the API and a secure context. */
+export function canLocate() {
+  return typeof navigator !== "undefined" && "geolocation" in navigator;
+}
+
+/**
+ * What the browser will do if we ask, without asking: "granted" means a call
+ * raises no prompt, "prompt" means it would, "denied" means it cannot succeed.
+ * "unknown" when the Permissions API is unavailable - Safari has been late
+ * here - in which case treat asking as a prompt.
+ */
+export async function permissionState() {
+  try {
+    const status = await navigator.permissions.query({ name: "geolocation" });
+    return status.state;
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * Ask for a position. Resolves {lat, lon, accuracy}; rejects with a code of
+ * "denied", "unavailable" or "timeout" so the caller can say something useful.
+ *
+ * High accuracy is off on purpose: ranking cinemas needs a town, not a doorway,
+ * and enabling it can spin up GPS for tens of seconds on a phone. A five-minute
+ * cached fix is accepted for the same reason.
+ */
+export function locate({ timeout = 8000, maximumAge = 300000 } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!canLocate()) {
+      reject(Object.assign(new Error("no geolocation"), { code: "unavailable" }));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+      }),
+      (err) => {
+        const code = err.code === 1 ? "denied"
+          : err.code === 3 ? "timeout"
+          : "unavailable";
+        reject(Object.assign(new Error(err.message || code), { code }));
+      },
+      { enableHighAccuracy: false, timeout, maximumAge },
+    );
+  });
+}
+
+/**
+ * What to tell the visitor about the precise-location attempt.
+ *
+ * Note this never claims "nothing left your browser" the way the timezone guess
+ * does. Resolving a position usually means the browser consulting its vendor's
+ * location service, and while that is the browser's business rather than ours,
+ * saying otherwise would be a lie by omission.
+ */
+export function explainPosition(status, accuracy = 0) {
+  switch (status) {
+    case "locating":
+      return "Getting your location…";
+    case "located": {
+      const km = Math.round((accuracy || 0) / 1000);
+      const how = km > 1 ? ` Accurate to about ${km} km.` : "";
+      return `Sorted from your location.${how} It stays in this tab — nothing is stored or sent on.`;
+    }
+    case "denied":
+      return "Location permission was refused, so the list is ordered by country instead. "
+        + "Your browser's site settings can undo that.";
+    case "timeout":
+      return "Your device took too long to find a position. Sorted by country instead.";
+    case "unavailable":
+      return "This browser won't give a location here. Sorted by country instead.";
+    default:
+      return "";
+  }
+}
+
 /** Plain-English account of how the guess was made, for the UI to show. */
 export function explain(detection) {
   switch (detection.source) {

@@ -6,7 +6,10 @@
  */
 
 import { index, search, countryReport, paginate } from "./query.js";
-import { detectCountry, storeCountry, explain, regionName } from "./geo.js";
+import {
+  detectCountry, storeCountry, explain, regionName,
+  canLocate, locate, permissionState, explainPosition,
+} from "./geo.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -43,6 +46,11 @@ const state = {
   // filter bar, so it surfaces as a removable chip instead.
   region: "",
   page: 1,
+  // A precise fix, once the visitor has offered one. Memory only, never
+  // localStorage - see the note in geo.js about why a lat/lon is not a country.
+  origin: null,
+  geoStatus: "idle",
+  geoAccuracy: 0,
 };
 
 /* The wiki stores terse family codes.  Spelling them out - and saying what they
@@ -122,10 +130,22 @@ function criteria() {
     film70: CONTROLS.film70.checked,
     country: CONTROLS.country.value,
     region: state.region,
+    origin: state.origin,
   };
-  if (state.tab === "country") c.country = state.country;
+  // Near me falls back to your country only while it has no better idea. With a
+  // real position the country pin comes off: "near me" is a worldwide question,
+  // and pinning it would hide the cinema an hour away over a border - which for
+  // a country the size of India also meant showing Delhi to someone in Mumbai.
+  // The sort itself is not forced here: requestPosition() sets the control to
+  // "distance" when a fix lands, so the section arrives ordered by distance but
+  // a deliberate change to the dropdown still wins.
+  if (state.tab === "country" && !state.origin) c.country = state.country;
   if (state.tab === "film70") c.film70 = true;
   if (c.sort === "relevance" && !c.q) c.sort = "location";
+  // Same degradation as relevance-without-a-query: a sort we cannot honour is
+  // not left standing. requestPosition() also resets the control itself, so
+  // this only catches the gap before a fix arrives.
+  if (c.sort === "distance" && !c.origin) c.sort = "location";
   return c;
 }
 
@@ -301,6 +321,20 @@ function venueCard(v) {
   const where = el("p", "where");
   where.append(icon("pin"), document.createTextNode(
     [v.city, v.state, v.country].filter(Boolean).join(", ")));
+  // Only present when the list is ordered by distance, and rounded hard: half
+  // these venues are located to their city, so a decimal would be a precision
+  // the data does not have.
+  if (v._km != null) {
+    // "0 km" reads as missing data rather than as "very close", and it is what
+    // a city-mapped venue in the town you are standing in rounds to.
+    const km = v._km < 1 ? "< 1 km"
+      : `${fmt.format(v._km < 100 ? Math.round(v._km) : Math.round(v._km / 10) * 10)} km`;
+    const tag = el("span", "away", km);
+    tag.title = v.geo_precision === "venue"
+      ? "Straight-line distance from where you are to the theatre."
+      : `Straight-line distance from where you are to ${v.city} — this one is only mapped to its city.`;
+    where.append(tag);
+  }
   main.append(where);
 
   const badges = el("div", "badges");
@@ -583,6 +617,7 @@ function update({ keepPage = false } = {}) {
   }
   renderActiveFilters();
   renderBanner();
+  renderGeoStatus();
   render();
 }
 
@@ -594,8 +629,16 @@ function goToPage(page) {
 
 // ------------------------------------------------------------------- tabs
 
-function setTab(tab, { push = true, keepPage = false } = {}) {
+/**
+ * `gesture` is true only when a human clicked the tab, and is what makes it
+ * safe for "Near me" to ask for a position: the click is on a control that
+ * names what the position is for, which is consent by any reasonable reading.
+ * A ?tab=country link restoring on load passes it false and must stay silent -
+ * that is a page the visitor has not touched yet.
+ */
+function setTab(tab, { push = true, keepPage = false, gesture = false } = {}) {
   state.tab = TABS.includes(tab) ? tab : "all";
+  if (gesture && state.tab === "country") locateForNearMe();
   for (const button of document.querySelectorAll("[data-tab]")) {
     const active = button.dataset.tab === state.tab;
     button.classList.toggle("on", active);
@@ -682,6 +725,89 @@ function setCountry(country, { remember = true } = {}) {
   update();
 }
 
+// ------------------------------------------------------- precise location
+
+/* Asking for a position is never something the page does on its own.
+ *
+ * Every path into this function starts at a click: the "Nearest first" sort, or
+ * the button in the Near me section. The one exception is a reload where
+ * permission was already granted, which raises no prompt at all - see start().
+ *
+ * A refusal is final for the visit. The sort reverts to location, the reason is
+ * shown once, and nothing asks again; browsers remember a denial anyway, so a
+ * retry would be a prompt the visitor never sees and a spinner that never ends.
+ */
+/**
+ * Entering the Near me section. Asks once, and only when asking can lead
+ * anywhere: not while a request is in flight, not when we already have a fix,
+ * and not after a refusal - browsers remember a denial, so re-asking would show
+ * the visitor nothing and spin forever.
+ */
+function locateForNearMe() {
+  if (!canLocate() || state.origin) return;
+  if (["locating", "denied", "unavailable", "timeout"].includes(state.geoStatus)) return;
+  requestPosition();
+}
+
+async function requestPosition() {
+  if (state.geoStatus === "locating") return false;
+  setGeoStatus("locating");
+  try {
+    const fix = await locate();
+    state.origin = { lat: fix.lat, lon: fix.lon };
+    state.geoAccuracy = fix.accuracy || 0;
+    setGeoStatus("located");
+    CONTROLS.sort.value = "distance";
+    update();
+    return true;
+  } catch (err) {
+    state.origin = null;
+    setGeoStatus(err.code || "unavailable");
+    // Leave the control saying what the list actually does.
+    if (CONTROLS.sort.value === "distance") CONTROLS.sort.value = "location";
+    update();
+    return false;
+  }
+}
+
+/**
+ * Handle a link that arrives already asking for distance order.
+ *
+ * This is the one place a position could be resolved without a click, so it is
+ * also the one place that has to be careful. Permission is checked before
+ * anything is requested: if it was granted on a previous visit the fix costs no
+ * prompt and the link works as its sender intended. Otherwise the page must not
+ * greet a stranger with a permission dialog it did not earn - the sort quietly
+ * becomes location, and the control is reset to say so.
+ */
+async function restoreDistanceSort() {
+  if (CONTROLS.sort.value !== "distance") return;
+  if (!canLocate() || await permissionState() !== "granted") {
+    CONTROLS.sort.value = "location";
+    return;
+  }
+  await requestPosition();
+}
+
+function setGeoStatus(status) {
+  state.geoStatus = status;
+  renderGeoStatus();
+}
+
+function renderGeoStatus() {
+  const box = $("geostatus");
+  let text = explainPosition(state.geoStatus, state.geoAccuracy);
+  // A section called "Near me" that is really showing your country A-to-Z has
+  // to say so. Leaving it silent is what let an alphabetical list of Indian
+  // venues put Delhi in front of someone standing in Mumbai.
+  if (!text && !state.origin && state.tab === "country" && state.country) {
+    text = `Listed by city within ${state.country} — not by distance, `
+      + "because nothing here knows where you are yet.";
+  }
+  box.textContent = text;
+  box.hidden = !text;
+}
+
 function restoreFromUrl() {
   const params = new URLSearchParams(location.search);
   CONTROLS.q.value = params.get("q") || "";
@@ -701,9 +827,20 @@ function restoreFromUrl() {
 function wire() {
   CONTROLS.q.addEventListener("input", debounce(update, 160));
   for (const key of ["film70", "dome", "commercial", "include_removed",
-                     "country", "projector", "ar", "sort"]) {
+                     "country", "projector", "ar"]) {
     CONTROLS[key].addEventListener("change", update);
   }
+
+  // Choosing "Nearest first" is itself the consent gesture - it is a click, and
+  // it says plainly what the position is wanted for - so the prompt is raised
+  // here rather than behind a separate button.
+  CONTROLS.sort.addEventListener("change", () => {
+    if (CONTROLS.sort.value === "distance" && !state.origin) {
+      requestPosition();
+      return;
+    }
+    update();
+  });
 
   // Picking "Any 15/70 mm film" hands the filter to the toggle that owns it,
   // so the select and the checkbox can never end up disagreeing.
@@ -717,7 +854,7 @@ function wire() {
   });
 
   for (const button of document.querySelectorAll("[data-tab]")) {
-    button.addEventListener("click", () => setTab(button.dataset.tab));
+    button.addEventListener("click", () => setTab(button.dataset.tab, { gesture: true }));
   }
 
   $("mycountry").addEventListener("change", (e) => setCountry(e.target.value));
@@ -868,6 +1005,9 @@ async function start() {
     $("mycountry").value = state.country;
   }
 
+  // An order the browser cannot produce should not be on the menu at all.
+  if (!canLocate()) $("sort-distance")?.remove();
+
   const tab = restoreFromUrl();
   wire();
   // A shared link can arrive with filters already applied. Landing on a shut
@@ -876,6 +1016,10 @@ async function start() {
   if (panelFiltersActive()) $("filterpanel").open = true;
   // keepPage so a shared ?page=3 link lands where it says it will.
   setTab(tab, { keepPage: true });
+
+  // Last, and deliberately after the first paint: resolving a position may
+  // await the Permissions API, and the list must not wait on that to appear.
+  await restoreDistanceSort();
 }
 
 start();

@@ -63,6 +63,23 @@ function score(venue, tokens) {
 
 const COLLATOR = new Intl.Collator("en", { sensitivity: "base", numeric: true });
 
+/**
+ * Great-circle distance between two points, in kilometres.
+ *
+ * The same formula geocode.py uses to sanity-check a match, so the browser and
+ * the geocoder agree about what "near" means.  Accuracy is far better than the
+ * data warrants - half the venues are only located to their city - which is why
+ * the UI rounds hard rather than printing a decimal.
+ */
+export function haversineKm(aLat, aLon, bLat, bLon) {
+  const rad = Math.PI / 180;
+  const dLat = (bLat - aLat) * rad;
+  const dLon = (bLon - aLon) * rad;
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
 const SORTS = {
   location: (a, b) =>
     COLLATOR.compare(a.country, b.country) ||
@@ -71,6 +88,17 @@ const SORTS = {
     COLLATOR.compare(a.name, b.name),
 
   name: (a, b) => COLLATOR.compare(a.name, b.name),
+
+  // Reads the `_km` search() attaches when an origin is known. 29 venues have
+  // no coordinates at all - Nominatim missed them - and they sort last rather
+  // than counting as distance zero, the same way size treats an unknown area.
+  distance: (a, b) => {
+    const x = a._km, y = b._km;
+    if (x == null && y == null) return SORTS.location(a, b);
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return x - y || COLLATOR.compare(a.name, b.name);
+  },
 
   // Biggest screen first, with unknown areas last rather than treated as zero.
   size: (a, b) => {
@@ -90,12 +118,15 @@ export const SORT_NAMES = Object.keys(SORTS).concat("relevance");
  * `scope` is the section the user is in and is applied before anything else:
  * "country" pins a country, "film70" pins 15/70 mm film. The filter controls
  * then refine within it.
+ *
+ * `origin` is {lat, lon} when the visitor has handed over a position, and is
+ * what the "distance" sort needs; without one that sort degrades to "location".
  */
 export function search(venues, criteria = {}) {
   const {
     q = "", country = "", region = "", projector = "", film = "",
     film70 = false, dome = false, commercial = false, ar = "",
-    includeRemoved = false, sort = "location", limit = 0,
+    includeRemoved = false, sort = "location", limit = 0, origin = null,
   } = criteria;
 
   const tokens = tokenize(q);
@@ -118,9 +149,28 @@ export function search(venues, criteria = {}) {
   if (tokens.length) rows = rows.filter((v) => matches(v, tokens));
 
   const total = rows.length;
-  const order = sort === "relevance" && tokens.length
-    ? (a, b) => score(b, tokens) - score(a, tokens) || SORTS.location(a, b)
-    : SORTS[sort] || SORTS.location;
+
+  // Measured once per row, before sorting rather than inside the comparator:
+  // sort() calls that ~n log n times for a value that depends only on the row.
+  // Only the rows that survived the filters are measured.
+  if (sort === "distance" && origin) {
+    rows = rows.map((v) => ({
+      ...v,
+      _km: v.lat == null || v.lon == null
+        ? null
+        : haversineKm(origin.lat, origin.lon, v.lat, v.lon),
+    }));
+  }
+
+  let order = SORTS[sort] || SORTS.location;
+  if (sort === "relevance" && tokens.length) {
+    order = (a, b) => score(b, tokens) - score(a, tokens) || SORTS.location(a, b);
+  } else if (sort === "distance" && !origin) {
+    // The control outlives the fix: a shared ?sort=distance link arrives before
+    // any permission exists, and a denial leaves the choice standing. Falling
+    // back keeps the list in a defensible order instead of an arbitrary one.
+    order = SORTS.location;
+  }
 
   rows = [...rows].sort(order);
   if (limit > 0 && rows.length > limit) rows = rows.slice(0, limit);

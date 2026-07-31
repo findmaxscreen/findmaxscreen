@@ -234,8 +234,10 @@
     <button type="button" data-tab="all" role="tab" aria-selected="true">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-globe"></use></svg>All venues
     </button>
+    <!-- The tab id stays "country": it is what ?tab= carries, so every link
+         already shared points at it. Only the label and the contents changed. -->
     <button type="button" data-tab="country" role="tab" aria-selected="false">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg>Your country
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"></use></svg>Near me
     </button>
     <button type="button" data-tab="film70" role="tab" aria-selected="false">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>70&nbsp;mm film
@@ -298,6 +300,9 @@
         <label>Sort by
           <select id="sort">
             <option value="location">Location</option>
+            <!-- Removed by app.js where the browser cannot honour it, rather
+                 than offering an order it would silently fail to produce. -->
+            <option value="distance" id="sort-distance">Nearest first</option>
             <option value="size">Biggest screen first</option>
             <option value="name">Theatre name</option>
             <option value="relevance">Best match</option>
@@ -388,6 +393,10 @@
     <p class="count" id="count" aria-live="polite"></p>
     <div id="pager-top" class="pagerbox"></div>
   </div>
+
+  <!-- How the ordering was arrived at, when a location was involved. Announced
+       politely because a refusal changes the list order under the reader. -->
+  <p class="how geostatus" id="geostatus" aria-live="polite" hidden></p>
 
   <div id="results"></div>
 
