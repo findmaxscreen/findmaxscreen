@@ -618,7 +618,11 @@ function nearMeBanner() {
 
   if (state.origin) {
     box.classList.add("yes");
-    if (state.geoStatus === "manual") {
+    // With an origin in hand the only statuses are located, manual, and
+    // locating mid-upgrade. Anything short of a measured fix renders as the
+    // named city - claiming "Nearest first" while the device is still being
+    // asked would be the banner getting ahead of the facts.
+    if (state.geoStatus !== "located") {
       box.append(el("p", "verdict-q", `Nearest to ${state.originCity}`));
       box.append(el("p", null,
         "Distances are measured from the middle of the city you named, as "
@@ -785,10 +789,14 @@ function nearestCity() {
 
 function preciseCta() {
   const wrap = el("div", "cta");
-  wrap.append(el("span", "cta-q", "Got a location after all?"));
+  const locating = state.geoStatus === "locating";
+  wrap.append(el("span", "cta-q",
+    locating ? "Asking your device\u2026" : "Got a location after all?"));
   const button = el("button", "ghost small");
   button.type = "button";
-  button.append(icon("pin"), document.createTextNode("Use my actual position"));
+  button.disabled = locating;
+  button.append(icon("pin"), document.createTextNode(
+    locating ? "Finding you\u2026" : "Use my actual position"));
   button.addEventListener("click", () => { state.geoStatus = "idle"; requestPosition(); });
   wrap.append(button);
   return wrap;
@@ -1121,6 +1129,10 @@ async function restorePosition() {
 
 function setGeoStatus(status) {
   state.geoStatus = status;
+  // The banner holds the buttons that cause status changes, so it is where
+  // the response to a click has to appear - progress printed down by the
+  // result count reads as noise from somewhere else entirely.
+  renderBanner();
   renderGeoStatus();
 }
 
@@ -1129,7 +1141,9 @@ function setGeoStatus(status) {
  * count, which is where someone looking at the rows themselves will be. */
 function renderGeoStatus() {
   const box = $("geostatus");
-  let text = state.tab === "nearme" || state.origin
+  // "locating" is deliberately absent here: transient progress belongs in the
+  // banner beside the button that started it, not two sections further down.
+  let text = state.geoStatus !== "locating" && (state.tab === "nearme" || state.origin)
     ? explainPosition(state.geoStatus, state.geoAccuracy)
     : "";
   if (state.geoStatus === "manual" && state.origin
