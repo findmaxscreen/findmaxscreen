@@ -634,8 +634,11 @@ whole point: a country tab called *Near me* served a Mumbai reader Delhi.
 `TAB_ALIASES` maps them to `nearme` and `all` rather than letting them fall
 through to the default; `smoke.py` asserts both still land where intended.
 
-**The quick filters** — the 70 mm toggle and the country select — sit between
-the tabs and the results rather than inside the collapsed Filters panel. 70 mm
+**The quick filters** — the 70 mm toggle and the country select — sit directly
+under the search box rather than inside the collapsed panel below it, which is
+now labelled *More filters*. Searching and filtering are the same gesture, and
+an earlier arrangement above the verdict left the reader reaching past a
+paragraph of prose to get from one to the other. 70 mm
 had a tab of its own until it turned out to be a filter wearing a tab's
 clothes, and burying the primary filter of a site built to find 15/70 mm film
 behind a disclosure triangle was always the wrong shape. There is now **one**

@@ -743,7 +743,6 @@ function setTab(tab, { push = true, keepPage = false, gesture = false } = {}) {
   const types = state.tab === "types";
   $("types").hidden = !types;
   $("controls").hidden = types;
-  $("quickfilters").hidden = types;
   $("resultbar").hidden = types;
   $("results").hidden = types;
   $("pager-bottom").hidden = types;
