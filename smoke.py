@@ -84,18 +84,24 @@ def find_chrome() -> str:
 # This tests our handling of a fix, not the browser's ability to produce one -
 # which is the half that has actually been wrong. "Near me" once ranked by the
 # alphabet and called it distance, and every unit test passed while it did.
-LONDON_STUB = """<script>
+#
+# Written to a file in the copy and loaded by src, rather than inlined into the
+# HTML. The page ships a Content-Security-Policy of script-src 'self', which
+# refuses an inline <script> - and the failure is silent and misleading: the
+# stub never runs, the browser reports no position, and the distance checks
+# fail as though geo.js were broken. Serving the stub from the same origin
+# keeps the test honest about the policy the real page enforces.
+LONDON_STUB = """
 navigator.geolocation.getCurrentPosition = (ok) => ok({
   coords: { latitude: 51.5074, longitude: -0.1278, accuracy: 1200 } });
 navigator.permissions.query = async () => ({ state: "granted" });
-</script>
 """
 
 # The macOS failure shape: the one-shot answers kCLErrorLocationUnknown
 # immediately, but a watch produces a fix once the provider has warmed up.
 # geo.js must fall back from the first to the second, or a Mac that could
 # locate itself in five seconds reports that it cannot at all.
-FLAKY_STUB = """<script>
+FLAKY_STUB = """
 navigator.geolocation.getCurrentPosition = (ok, fail) =>
   fail({ code: 2, message: "kCLErrorLocationUnknown" });
 navigator.geolocation.watchPosition = (ok) => {
@@ -105,10 +111,14 @@ navigator.geolocation.watchPosition = (ok) => {
 };
 navigator.geolocation.clearWatch = () => {};
 navigator.permissions.query = async () => ({ state: "granted" });
-</script>
 """
 
 MODULE_TAG = '<script type="module" src="app.js"></script>'
+
+# Classic, not a module: a module would defer past app.js and stub the API
+# after geo.js had already asked for a position.
+STUB_FILE = "geostub.js"
+STUB_TAG = f'<script src="{STUB_FILE}"></script>'
 
 
 @contextmanager
@@ -122,7 +132,8 @@ def located(dist: Path, stub: str = LONDON_STUB):
         if MODULE_TAG not in html:
             raise SystemExit("smoke: index.html no longer loads app.js as a "
                              "module; the geolocation stub cannot be injected")
-        page.write_text(html.replace(MODULE_TAG, stub + MODULE_TAG))
+        (site / STUB_FILE).write_text(stub)
+        page.write_text(html.replace(MODULE_TAG, STUB_TAG + "\n" + MODULE_TAG))
         with serving(site) as base:
             yield base
 
@@ -284,7 +295,13 @@ def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
 
     assert_("tab bar rendered", dom.count("data-tab=") == 3,
             f"found {dom.count('data-tab=')} tabs")
-    assert_("title is set", "FindMaxScreen" in dom)
+    # Read the actual <title>. This used to look for "FindMaxScreen" anywhere
+    # in the DOM, which passed for years without ever touching the title: the
+    # only place that spaceless spelling appeared was the subject line of the
+    # report mailto. Retiring the mailto is what finally failed it.
+    title = re.search(r"<title>([^<]*)</title>", dom)
+    assert_("title is set", title is not None and "Find Max Screen" in title.group(1),
+            f"title is {title.group(1)!r}" if title else "no <title> element")
     assert_("licence attribution present", "CC" in dom and "BY-SA" in dom)
 
     # A link naming a country wins; a link saying nothing about countries gets
@@ -340,10 +357,16 @@ def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
     # nobody clicks, pointing at a theatre the reader is already looking at.
     assert_("no per-venue report links", dom.count(">Report<") == 0,
             f"found {dom.count('>Report<')} — reporting belongs in the footer")
-    assert_("the footer offers a prefilled report", "mailto:" in dom)
+    # The mailto is gone: a published address is harvested, and email could not
+    # require the venue or the URL that make a report worth reading. The link
+    # now names an issue *form*, which can. It has to name the template
+    # explicitly - blank issues are disabled, so a bare /issues/new would land
+    # on the chooser and lose the prefilled title.
+    assert_("the footer offers a report link", "/issues/new?" in dom)
+    assert_("the report link names its template", "template=site.yml" in dom)
+    assert_("no address is published for harvesting",
+            "mailto:" not in dom and "@findmaxscreen" not in dom)
     assert_("the footer explains where corrections go", "Found a mistake" in dom)
-    assert_("the report asks which theatre",
-            "Which%20theatre" in dom or "Which theatre" in dom)
 
     # One Google Maps link, not two: the place card already has Directions.
     assert_("maps link present", dom.count(">Maps<") > 0)

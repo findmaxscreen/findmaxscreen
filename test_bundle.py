@@ -222,17 +222,77 @@ class TestReporting(BundleCase):
         """Data corrections belong upstream, so that link is never optional."""
         self.assertTrue(self.payload["links"]["wiki"].startswith("https://"))
 
-    def test_a_reporting_address_ships(self):
-        """The only route that needs no account, so it is the one that matters."""
-        email = self.payload["links"]["email"]
-        self.assertRegex(email, r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    def test_no_email_address_is_published(self):
+        """The mailto was retired because a published address is harvested
+        within days, and because email cannot require the venue or the URL that
+        make a report actionable. This asserts it stays retired: the wiki is
+        the no-account route now, and the issue form is the structured one.
 
-    def test_the_reporting_address_is_not_personal(self):
-        """A role address can be filtered or rotated; a personal one cannot,
-        and publishing one invites spam at somebody's real inbox."""
-        local = self.payload["links"]["email"].split("@")[0].lower()
-        self.assertIn(local, ("issues", "hello", "contact", "report", "support"),
-                      "publish a role address, not a personal one")
+        Checked against the whole payload rather than links["email"], because
+        the way this comes back is somebody adding an address to a data note or
+        a new links entry, not restoring the key that was deleted."""
+        blob = json.dumps(self.payload)
+        found = re.findall(r"[\w.+-]+@[\w-]+\.[\w.]+", blob)
+        self.assertEqual(found, [], f"an email address reached the bundle: {found}")
+
+    def test_no_email_address_appears_in_published_html(self):
+        """The companion to the test above, guarding the other half.
+
+        This is the mistake that actually happened: the privacy page spelled an
+        address out in an <a href="mailto:">, which is the single most
+        harvestable form there is, while every other page was careful to build
+        its links at runtime. 158 unit tests passed through it, because none of
+        them read the HTML. This one does."""
+        import export
+
+        offenders = {}
+        for name in export.PUBLIC_FILES:
+            if not name.endswith(".html"):
+                continue
+            found = re.findall(r"[\w.+-]+@[\w-]+\.[\w.]+",
+                               (HERE / "web" / name).read_text())
+            if found:
+                offenders[name] = found
+        self.assertEqual(offenders, {},
+                         "an email address is sitting in published HTML where "
+                         f"a harvester will find it: {offenders}")
+
+    def test_the_issue_form_the_site_links_to_exists_and_demands_the_basics(self):
+        """app.js sends reporters to ?template=site.yml. If that file is renamed
+        the link does not 404 - GitHub quietly falls back to the chooser - so
+        nothing would ever tell us the prefill had stopped working.
+
+        The required fields are the point of the form, and of retiring the
+        mailto: an email could ask for the URL and be ignored. This asserts the
+        form still cannot be submitted without it.
+
+        Scanned as text rather than parsed. PyYAML is not in the standard
+        library and nothing else here needs it; adding a pip install to the
+        workflow to check four booleans is a worse trade than a block scan."""
+        form = HERE / ".github" / "ISSUE_TEMPLATE" / "site.yml"
+        self.assertTrue(form.is_file(), "app.js links at site.yml; it is missing")
+
+        # One block per "- type:" entry, each carrying its own id and its own
+        # required flag - which is all this needs to know.
+        blocks = re.split(r"^  - type:", form.read_text(), flags=re.M)[1:]
+        required = set()
+        for block in blocks:
+            found = re.search(r"^    id: (\S+)", block, flags=re.M)
+            if found and re.search(r"required: true", block):
+                required.add(found.group(1))
+
+        for field in ("what", "url", "browser", "known"):
+            self.assertIn(field, required,
+                          f"{field!r} must stay required, or reports arrive unactionable")
+
+    def test_blank_issues_stay_disabled(self):
+        """The back door. With blank issues on, every required field above is
+        optional again by simply not using the template."""
+        config = (HERE / ".github" / "ISSUE_TEMPLATE" / "config.yml").read_text()
+        # (?m) because the setting sits below the comment block, and assertRegex
+        # does a plain search where ^ would otherwise only match the file start.
+        self.assertRegex(config, r"(?m)^blank_issues_enabled:\s*false\s*$",
+                         "blank issues bypass every required field on the form")
 
     def test_repo_is_either_a_url_or_deliberately_empty(self):
         """An unset repo hides the report links rather than shipping dead ones."""
