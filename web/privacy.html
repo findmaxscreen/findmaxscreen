@@ -23,7 +23,12 @@
 <meta property="og:title" content="Privacy — Find Max Screen">
 <meta property="og:description" content="No cookies, no analytics, no ads, no third-party requests. Here is exactly what that means, and how to verify it.">
 
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a03b3b%27 stroke-width=%271.7%27 stroke-linecap=%27round%27%3E%3Ccircle cx=%2710.4%27 cy=%2710.4%27 r=%277.4%27/%3E%3Cpath d=%27M20.6 20.6 15.6 15.6%27/%3E%3Crect x=%277%27 y=%277.9%27 width=%276.8%27 height=%275%27 rx=%270.7%27/%3E%3Cpath d=%27M9.3 7.9v5M11.5 7.9v5%27/%3E%3C/svg%3E">
+<!-- Deliberately the plain reel, without the film that the masthead symbol
+     carries. This renders at 16px in a browser tab, where the draped strip
+     turns into two grey smudges under a circle - the exact failure the icon
+     set keeps running into. A simplified mark at tab size is normal practice
+     and reads better than a faithful one nobody can resolve. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a03b3b%27 stroke-width=%271.7%27 stroke-linecap=%27round%27%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%278.6%27/%3E%3Cpath d=%27M12 12h.01%27/%3E%3Ccircle cx=%2712%27 cy=%277%27 r=%271.5%27/%3E%3Ccircle cx=%2712%27 cy=%2717%27 r=%271.5%27/%3E%3Ccircle cx=%277%27 cy=%2712%27 r=%271.5%27/%3E%3Ccircle cx=%2717%27 cy=%2712%27 r=%271.5%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 <script src="theme.js"></script>
 </head>
@@ -31,11 +36,19 @@
 
 <svg class="sprite" aria-hidden="true">
   <defs>
-    <symbol id="i-find" viewBox="0 0 24 24">
-      <circle cx="10.4" cy="10.4" r="7.4"/>
-      <path d="M20.6 20.6 15.6 15.6"/>
-      <rect x="7" y="7.9" width="6.8" height="5" rx="0.7"/>
-      <path d="M9.3 7.9v5M11.5 7.9v5"/>
+    <!-- Kept in step with index.html; see the note on the symbol there, which
+         also explains why the favicon above is a plainer reel than this one. -->
+    <symbol id="i-reel" viewBox="0 0 24 24">
+      <circle cx="8.8" cy="12.9" r="6.5"/>
+      <path d="M8.8 12.9h.01"/>
+      <circle cx="8.8" cy="9.6" r="1.05"/>
+      <circle cx="11.94" cy="11.88" r="1.05"/>
+      <circle cx="10.74" cy="15.58" r="1.05"/>
+      <circle cx="6.86" cy="15.58" r="1.05"/>
+      <circle cx="5.66" cy="11.88" r="1.05"/>
+      <path d="M13.9 7.2c3.3-2.6 6.3-3.1 9-2.3"/>
+      <path d="M15.7 10.2c2.8-2.2 5.4-2.7 7.7-2.1"/>
+      <path d="M17.2 5.5 18.4 8.4M20.3 4.6l1.1 2.9"/>
     </symbol>
     <symbol id="i-shield" viewBox="0 0 24 24">
       <path d="M12 2.8l7 2.6v6.1c0 4.4-2.9 8.2-7 9.7-4.1-1.5-7-5.3-7-9.7V5.4z"/>
@@ -47,7 +60,7 @@
 <header class="masthead">
   <div class="wrap">
     <h1><a href="./" title="Back to the venue list"
-      ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</a></h1>
+      ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reel"></use></svg>Find Max Screen</a></h1>
     <p class="tagline">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg>
       Privacy

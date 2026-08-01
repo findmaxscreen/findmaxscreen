@@ -117,17 +117,59 @@ a:hover { text-decoration-thickness: 2px; }
   outline-offset: 4px;
   border-radius: 2px;
 }
+/* Larger than the title rather than smaller, which looks wrong written down and
+   is right on the page: the reel is only about half the width of its own 24-unit
+   box - the rest is the film running off it - so a glyph sized to match the caps
+   renders a reel half their height. 1.18em puts the reel itself at roughly the
+   x-height of the wordmark beside it. */
 .masthead h1 .icon {
-  font-size: 0.82em;
+  font-size: 1.18em;
   stroke-width: 1.5;
   color: var(--accent);
 }
+
+/* The one rule the palette's light-dark() cannot carry, because stroke-width is
+   a number rather than a colour - so this is the single place in the file that
+   has to name the two themes itself.
+
+   Pale strokes on a dark ground bloom. The reel's four holes and its hub sit
+   close together, and at 1.5 they thicken into a cluster with the gaps closed;
+   1.15 makes the dark version read at the weight the light one already has.
+
+   The accent colour is deliberately not touched. A deeper pink here would read
+   better in isolation and would then disagree with every link, badge and tab on
+   the page, which is a worse trade than a thinner line. */
+:root[data-theme="dark"] .masthead h1 .icon { stroke-width: 1.15; }
+
+@media (prefers-color-scheme: dark) {
+  /* "auto" is the absence of the attribute, not a value of it, so this has to
+     match on not-light rather than on nothing - otherwise a visitor who has
+     deliberately chosen the light theme on a dark system gets the thin stroke
+     against paper, where it looks anaemic. */
+  :root:not([data-theme="light"]) .masthead h1 .icon { stroke-width: 1.15; }
+}
+/* Part of the wordmark, so it hugs the title. Oxblood rather than grey: the
+   tagline below is grey italic too, and two of those in a row read as one
+   wrapped paragraph rather than as two different kinds of statement. The
+   accent is already the masthead's own colour, from the reel beside it. */
+.jokeline {
+  margin: 5px 0 0;
+  font-size: 14.5px;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+}
+
 .tagline {
   margin: 6px 0 0;
   font-size: 15px;
   font-style: italic;
   color: var(--muted-flat);
 }
+
+/* The joke belongs to the title above it; the live count belongs to the list
+   below. Enough of a gap to say so. */
+.jokeline + .tagline { margin-top: 11px; }
 
 /* The editor's note: why this page is here at all. Folded away behind its own
    summary - it earns a read once, not a permanent seven lines above the list
