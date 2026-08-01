@@ -45,17 +45,30 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      # Action versions are kept current deliberately, not opportunistically.
+      # These are JavaScript actions, and each declares the Node runtime it wants
+      # in its own action.yml. GitHub removes old runtimes from the runners, and
+      # in the meantime force-runs stale actions on the new one - which shows up
+      # as a deprecation annotation on a green run and works right up until it
+      # does not. On a job that fires at 06:00 with nobody watching, the failure
+      # mode is not a red tick anyone sees, it is the data quietly going stale.
+      #
+      # Checked before the last bump, because the workflow depends on each:
+      # checkout still defaults persist-credentials true (the bot push below
+      # needs it), setup-chrome still exports chrome-path (smoke.py reads it as
+      # CHROME_PATH), and deploy-pages still exports page_url (the verify step
+      # below reads it).
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
 
-      - uses: browser-actions/setup-chrome@v1
+      - uses: browser-actions/setup-chrome@v2
         id: chrome
         with:
           chrome-version: stable
@@ -118,14 +131,14 @@ jobs:
           git push
 
       # ---- publish ---------------------------------------------------------
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       # Cloudflare holds this site for a month, so the deploy above is invisible
       # until the edge is purged. Deliberately fails the run on error: the deploy
