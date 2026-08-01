@@ -3,6 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- The no-tracking claim on /privacy, enforced rather than promised.
+     'self' everywhere means a third-party analytics tag, font or beacon added
+     later is refused by the browser instead of quietly shipping: the page
+     breaks loudly, which is the only version of this promise worth making.
+
+     img-src names findmaxscreen.com as well as 'self' because apple-touch-icon
+     is referenced by absolute URL (see the note on it below). In production the
+     two are the same origin and the entry is redundant; on localhost it is the
+     difference between a clean console and a "blocked" warning that would
+     eventually train someone to ignore a real one. It grants no third party
+     anything. data: is there for the inline SVG favicon.
+
+     connect-src stays 'self' because venues.json is the only fetch the page
+     makes and there is no backend to talk to. form-action 'none' is honest -
+     the one form here never submits - and base-uri 'none' stops an injected
+     <base> from re-pointing every relative script at another origin.
+
+     Outbound links to Google Maps still work: CSP governs what the page loads,
+     not where the visitor chooses to navigate.
+
+     No frame-ancestors here: it is only honoured as an HTTP header and is
+     ignored - noisily, in the console - when delivered in a meta element.
+     Pages cannot set headers, so anti-framing has to come from the CDN in
+     front of the site, not from this document. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://findmaxscreen.com; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'">
 <!-- Deliberately not the same string as og:title below. This one is a search
      result, where the useful thing is saying what the site answers; that one is
      a message bubble, where the image already said it and a long title just
@@ -186,6 +212,10 @@
       <circle cx="12" cy="12" r="8.5"/>
       <path d="M3.5 12h17M12 3.5c4 4.5 4 12.5 0 17-4-4.5-4-12.5 0-17z"/>
     </symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <path d="M12 2.8l7 2.6v6.1c0 4.4-2.9 8.2-7 9.7-4.1-1.5-7-5.3-7-9.7V5.4z"/>
+      <path d="M8.8 12.1l2.2 2.2 4.2-4.4"/>
+    </symbol>
     <symbol id="i-sun" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="4"/>
       <path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.5 1.5M18.3 18.3l1.5 1.5M2.5 12h2M19.5 12h2M4.2 19.8l1.5-1.5M18.3 5.7l1.5-1.5"/>
@@ -213,6 +243,16 @@
       ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</a></h1>
     <p class="tagline" id="tagline">Loading…</p>
 
+    <!-- Above "Why this exists", not below it: this is the claim a visitor
+         arriving from a link aggregator checks first, and it is the one thing
+         on the page that is true of the page itself rather than of the data.
+         A link, not a disclosure triangle, because the full statement is long
+         enough to deserve its own document and short enough to read there. -->
+    <a class="privacybadge" href="./privacy.html">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg>
+      <span>No tracking, ever</span>
+    </a>
+
     <details class="why">
       <summary><strong>Why this exists</strong></summary>
       <p>
@@ -220,7 +260,7 @@
         rel="noreferrer">Christopher Nolan</a> and
         <a href="https://letterboxd.com/director/denis-villeneuve/" target="_blank"
         rel="noreferrer">Denis Villeneuve</a> have both done more than anyone to
-        keep 15/70&nbsp;mm film projection alive — and IMAX still gives
+        keep the IMAX format alive — and IMAX still gives
         you no way to find the theatres that run it. Their
         <a href="https://www.imax.com/theatre/finder" target="_blank" rel="noreferrer">own
         theatre finder</a> searches by location and nothing else, and the theatre
@@ -250,7 +290,9 @@
 
   <div id="banner"></div>
 
-  <form id="controls" autocomplete="off" onsubmit="return false">
+  <!-- No onsubmit attribute: the Content-Security-Policy above forbids inline
+       handlers, so the Enter-key no-op is bound in wire() instead. -->
+  <form id="controls" autocomplete="off">
     <div class="searchrow">
       <svg class="icon searchicon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"></use></svg>
       <input type="search" id="q" placeholder="Search a city, country, or theatre…  (press /)"

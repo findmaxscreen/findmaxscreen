@@ -440,11 +440,8 @@ function venueCard(v) {
   for (const [href, text, iconName, title] of venueLinks(v)) {
     const a = el("a");
     a.href = href;
-    // mailto: must not open a tab that then sits there empty.
-    if (!href.startsWith("mailto:")) {
-      a.target = "_blank";
-      a.rel = "noreferrer";
-    }
+    a.target = "_blank";
+    a.rel = "noreferrer";
     a.title = title;
     a.append(icon(iconName), document.createTextNode(text));
     links.append(a);
@@ -1240,6 +1237,13 @@ function wireSearchSuggest() {
 
 function wire() {
   wireSearchSuggest();
+
+  // Pressing Enter in the search box must not reload the page: the results are
+  // already live on every keystroke, and a submit would throw away the filter
+  // state the URL has not been updated with yet. This used to be an onsubmit
+  // attribute in the HTML, which the site's CSP now refuses to run.
+  $("controls").addEventListener("submit", (event) => event.preventDefault());
+
   CONTROLS.q.addEventListener("input", debounce(update, 160));
   for (const key of ["projector", "ar"]) {
     CONTROLS[key].addEventListener("change", update);
@@ -1316,38 +1320,32 @@ function wire() {
   });
 }
 
-/* Three audiences, three destinations, named in the order most people need
- * them. Venue facts belong upstream on the wiki, where a fix reaches everyone
- * rather than only this site. A broken page or link is ours, and reaches us by
- * email so that no account is needed. Developers who would rather file an issue
- * get that route too, once the repository exists.
+/* Two audiences, two destinations, named in the order most people need them.
+ * Venue facts belong upstream on the wiki, where a fix reaches everyone rather
+ * than only this site, and where no account is needed. A broken page or link is
+ * ours, and goes to the issue tracker.
+ *
+ * There used to be a mailto here as the no-account route. It was retired: a
+ * published address is harvested within days, and an email can suggest what to
+ * include but cannot require it, so reports arrived without the venue or the
+ * URL. The wiki keeps the no-account path open for venue data, which is what
+ * most reports are about; the issue form can insist on the rest.
  *
  * The report used to sit on every venue card, which meant 476 copies of a link
- * almost nobody clicks and which the reporter did not need pointed out. One
- * link here does the job - but since the reader is no longer standing on a
- * particular theatre when they click it, the email has to ask which one. */
-function reportEmailUrl(email) {
-  const body = [
-    "Which theatre is this about?",
-    "(name and city - or say 'the site itself' for a page problem)",
-    "",
-    "",
-    "What is wrong?",
-    "(a broken link, wrong projector, wrong screen size, wrong location...)",
-    "",
-    "",
-    "-- ",
-    `Reported from ${location.href}`,
-  ].join("\n");
-
-  return `mailto:${email}`
-    + `?subject=${encodeURIComponent("FindMaxScreen: a problem")}`
-    + `&body=${encodeURIComponent(body)}`;
+ * almost nobody clicks. One link here does the job - but since the reader is no
+ * longer standing on a particular theatre when they click it, the form has to
+ * ask which one, and being a form, it can refuse to proceed until told. */
+function reportIssueUrl(repo) {
+  // Named template rather than a bare /issues/new: blank issues are disabled,
+  // so an unqualified link would land on the chooser and throw the prefill
+  // away. Naming it keeps both the template's required fields and the title.
+  return `${repo}/issues/new?`
+    + new URLSearchParams({ template: "site.yml", title: "Site: " });
 }
 
 function renderReportNote(links) {
   const note = $("reportnote");
-  if (!note || !(links.wiki || links.email || links.repo)) return;
+  if (!note || !(links.wiki || links.repo)) return;
   note.replaceChildren();
   note.hidden = false;
 
@@ -1355,10 +1353,8 @@ function renderReportNote(links) {
   const link = (href, text) => {
     const a = el("a", null, text);
     a.href = href;
-    if (!href.startsWith("mailto:")) {
-      a.target = "_blank";
-      a.rel = "noreferrer";
-    }
+    a.target = "_blank";
+    a.rel = "noreferrer";
     note.append(a);
   };
 
@@ -1367,17 +1363,10 @@ function renderReportNote(links) {
   add(", and correcting them there fixes them for everyone and flows back here "
       + "on the next sync.");
 
-  if (links.email) {
-    add(" For a broken link, wrong data or anything else amiss, ");
-    link(reportEmailUrl(links.email), "report it by email");
-    add(" — tell us which theatre and what is wrong.");
-  }
   if (links.repo) {
-    add(" Developers can ");
-    link(`${links.repo}/issues/new?`
-         + new URLSearchParams({ title: "Site: ", labels: "site" }),
-         "open an issue");
-    add(" instead.");
+    add(" For a broken link or a problem with this site, ");
+    link(reportIssueUrl(links.repo), "open an issue");
+    add(" — it asks which theatre and what is wrong.");
   }
 }
 

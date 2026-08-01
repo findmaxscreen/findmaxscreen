@@ -41,6 +41,11 @@ SITE_URL = "https://findmaxscreen.com/"
 # Exactly what gets published.  Anything not named here stays local - which is
 # the entire security model for the admin page.
 PUBLIC_FILES = ("index.html", "app.js", "query.js", "geo.js", "style.css",
+                # The no-tracking statement, and the two-line script that keeps
+                # it on the visitor's chosen theme. index.html links to the page
+                # from the masthead badge, so shipping one without the other
+                # publishes a promise pointing at a 404.
+                "privacy.html", "theme.js",
                 # Link-preview assets. index.html points at both by absolute
                 # URL, so a deploy that drops them ships tags aimed at two 404s
                 # - and Apple caches that failure per URL. They are required,
@@ -57,19 +62,26 @@ PUBLIC_DATA = ("data/venues.json",)
 # not just live in the repo settings.
 OPTIONAL_FILES = ("CNAME",)
 
-# Where an ordinary visitor reports a problem. A static site has nowhere to POST
-# a form to, and a form service would mean a third party plus an endpoint id in
-# the page. A mailto on our own domain needs neither, works for someone who has
-# never heard of GitHub, and being a role address rather than a personal one, it
-# can be filtered or replaced without touching anybody's inbox identity.
+# There is deliberately no reporting address here any more.
 #
-# The trade is that a published address gets scraped and will attract spam. That
-# is the price of not requiring an account to say "this link is broken".
-REPORT_EMAIL = "issues@findmaxscreen.com"
+# A mailto had one real virtue - it needed no account - and three costs that
+# outgrew it: a published address is harvested and spammed, an email can
+# prefill a template but cannot *require* anything, so reports arrived without
+# the venue or the URL in them, and the same problem arrived several times over
+# with no way for one reporter to see another's.
+#
+# Reports now go to the two places that can actually act on them: the wiki for
+# venue data, which fixes it for everyone rather than just for this site, and
+# GitHub issue forms for the site itself, where fields can be marked required
+# and an account is the spam filter. The wiki needs no account at all, so the
+# no-account route survives for the data that makes up most reports.
+#
+# A hosted form would have been the third option and was rejected: it means a
+# third-party request and an endpoint id in a page whose whole claim is that it
+# makes neither.
 
-# The developer path, for people who would rather file an issue than write an
-# email. Empty until the repository exists; the UI omits it rather than shipping
-# a dead link. No trailing slash — app.js appends /issues/new to it.
+# No trailing slash — app.js appends /issues/new to it. Empty is allowed and
+# hides the report link rather than shipping a dead one.
 REPO_URL = "https://github.com/findmaxscreen/findmaxscreen"
 
 # The wiki is the actual source of truth for venue data. A correction made there
@@ -230,7 +242,7 @@ def build_payload(conn: sqlite3.Connection) -> dict:
 
     return {
         "unmapped_countries": unmapped,
-        "links": {"repo": REPO_URL, "wiki": WIKI_URL, "email": REPORT_EMAIL},
+        "links": {"repo": REPO_URL, "wiki": WIKI_URL},
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "revision": dict(revision) if revision else None,
         "stats": {
@@ -265,7 +277,7 @@ def build_payload(conn: sqlite3.Connection) -> dict:
 # --------------------------------------------------------------------------- #
 
 def build_sitemap(revision: dict | None) -> str:
-    """One URL today; generated rather than hand-written so it stays honest.
+    """Two URLs; generated rather than hand-written so it stays honest.
 
     lastmod comes from the wiki revision timestamp, not from the time this ran.
     Those differ on most days: the daily job re-exports whether or not the wiki
@@ -273,7 +285,12 @@ def build_sitemap(revision: dict | None) -> str:
     every crawler that reads it - the fastest way to have the field ignored.
     Dated from the wiki instead, it only moves when the content actually did.
 
-    Written by hand rather than with ElementTree because it is nine lines of
+    That reasoning is why /privacy.html carries no lastmod at all rather than
+    borrowing the wiki's. The wiki revision says nothing about when that page
+    was edited, and a date that moves for an unrelated reason is worse than no
+    date: omitting the field lets a crawler use its own record instead.
+
+    Written by hand rather than with ElementTree because it is a dozen lines of
     XML with one variable in it, and the stdlib version needs more setup than
     that to produce the same string.
     """
@@ -283,6 +300,7 @@ def build_sitemap(revision: dict | None) -> str:
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         f"  <url>\n    <loc>{SITE_URL}</loc>{lastmod}\n  </url>\n"
+        f"  <url>\n    <loc>{SITE_URL}privacy.html</loc>\n  </url>\n"
         "</urlset>\n"
     )
 

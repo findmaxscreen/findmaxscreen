@@ -1,0 +1,75 @@
+# The wiki is the real destination for almost everything filed here, so this
+# form says so twice: once in prose at the top, and once as a required
+# acknowledgement. That is not bureaucracy - a correction made here fixes one
+# site, and the same correction made upstream fixes every site that reads the
+# wiki, including this one on the next sync.
+#
+# "Source" is required for the same reason a wiki citation is. Without it a
+# report is one stranger's recollection against another's, and there is no way
+# to settle it except to go and find the source anyway.
+name: Wrong venue data
+description: A theatre's projector, screen, location or status is wrong here
+title: "Data: "
+labels: ["data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please fix the wiki instead, if the wiki is what is wrong.**
+
+        Projectors, screen sizes and locations all come from the
+        [IMAX Wiki](https://imax.fandom.com/wiki/List_of_IMAX_venues).
+        Correcting it there reaches everyone, not just this site, and flows
+        back here on the next daily sync. It needs no account.
+
+        This form is for when **the wiki is right but this site disagrees** —
+        a parsing bug, a bad link, or a venue pinned to the wrong place.
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Before filing
+      options:
+        - label: >-
+            I have checked the wiki page, and either it already says the right
+            thing while this site shows something different, or the problem is
+            with this site's own handling (a link, a map pin, a filter).
+          required: true
+
+  - type: input
+    id: venue
+    attributes:
+      label: Which venue
+      description: Name, city and country — enough to pick it out of 476.
+      placeholder: BFI IMAX, London, United Kingdom
+    validations:
+      required: true
+
+  - type: input
+    id: shows
+    attributes:
+      label: What this site shows
+      placeholder: Projector family GT Laser
+    validations:
+      required: true
+
+  - type: input
+    id: should
+    attributes:
+      label: What it should say
+      placeholder: GT Laser plus 15/70 mm film
+    validations:
+      required: true
+
+  - type: textarea
+    id: source
+    attributes:
+      label: Source
+      description: >-
+        A link or a description of where the correct information comes from —
+        the wiki page, the theatre's own site, a listing, a photograph of the
+        projection booth. Required because a data claim with no source cannot
+        be checked, and an unverifiable correction is worse than none.
+      placeholder: https://imax.fandom.com/wiki/... — the wiki lists film here
+    validations:
+      required: true

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Same policy as index.html. A privacy page served under weaker rules than
+     the page it makes promises about would be an odd document. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://findmaxscreen.com; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'">
+
+<title>Privacy — Find Max Screen</title>
+<meta name="description" content="Find Max Screen sets no cookies, runs no analytics, carries no ads and makes no third-party requests. What the site stores, what it cannot see, and how to check every claim yourself.">
+<link rel="canonical" href="https://findmaxscreen.com/privacy.html">
+<meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171613" media="(prefers-color-scheme: dark)">
+
+<!-- No og:image. This page is not the one worth a link preview, and pointing
+     at og.png would promise a card about 15/70 mm film that this text does not
+     deliver. The description above is what a crawler should quote. -->
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://findmaxscreen.com/privacy.html">
+<meta property="og:site_name" content="Find Max Screen">
+<meta property="og:title" content="Privacy — Find Max Screen">
+<meta property="og:description" content="No cookies, no analytics, no ads, no third-party requests. Here is exactly what that means, and how to verify it.">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a03b3b%27 stroke-width=%271.7%27 stroke-linecap=%27round%27%3E%3Ccircle cx=%2710.4%27 cy=%2710.4%27 r=%277.4%27/%3E%3Cpath d=%27M20.6 20.6 15.6 15.6%27/%3E%3Crect x=%277%27 y=%277.9%27 width=%276.8%27 height=%275%27 rx=%270.7%27/%3E%3Cpath d=%27M9.3 7.9v5M11.5 7.9v5%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true">
+  <defs>
+    <symbol id="i-find" viewBox="0 0 24 24">
+      <circle cx="10.4" cy="10.4" r="7.4"/>
+      <path d="M20.6 20.6 15.6 15.6"/>
+      <rect x="7" y="7.9" width="6.8" height="5" rx="0.7"/>
+      <path d="M9.3 7.9v5M11.5 7.9v5"/>
+    </symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <path d="M12 2.8l7 2.6v6.1c0 4.4-2.9 8.2-7 9.7-4.1-1.5-7-5.3-7-9.7V5.4z"/>
+      <path d="M8.8 12.1l2.2 2.2 4.2-4.4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="masthead">
+  <div class="wrap">
+    <h1><a href="./" title="Back to the venue list"
+      ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-find"></use></svg>Find Max Screen</a></h1>
+    <p class="tagline">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg>
+      Privacy
+    </p>
+  </div>
+</header>
+
+<main class="wrap prose">
+
+  <!-- The claim as a headline, before the paragraph that qualifies it. Someone
+       who arrives from a link aggregator, reads one line and leaves should
+       still leave with the right answer. -->
+  <h2 class="pagetitle">No Cookies, No Analytics, No Ads</h2>
+
+  <p class="lede">
+    This site sets no cookies, runs no analytics, carries no ads and makes no
+    requests to anyone else's servers. There are no accounts, no trackers and
+    no logs of my own, because there is no server here to keep them.
+  </p>
+
+  <p>
+    Every site says something like that. What follows is the specific version,
+    including the parts that are less flattering, and the way to check each
+    claim rather than take my word for it.
+  </p>
+
+  <h2>What the site does not do</h2>
+
+  <ul>
+    <li><strong>No cookies.</strong> Not one, of any kind. Nothing here writes
+      <code>document.cookie</code>, and there is no server to set one.</li>
+    <li><strong>No analytics.</strong> No Google Analytics, Plausible, Fathom,
+      Matomo or anything else. No page-view counter, no session recording, no
+      heatmaps. I genuinely do not know how many people visit.</li>
+    <li><strong>No advertising and no third-party embeds.</strong> No ad
+      network, no tag manager, no share buttons, no A/B tooling, no chat widget,
+      no consent banner — a banner would only be needed if there were something
+      to consent to.</li>
+    <li><strong>No third-party requests at all.</strong> No CDN-hosted fonts,
+      no icon library, no JavaScript framework fetched from someone else's
+      domain. Every byte comes from this one domain. Even the favicon is drawn
+      inline in the page rather than fetched.</li>
+    <li><strong>No accounts, no sign-in, no email capture.</strong> There is
+      nothing to register for.</li>
+  </ul>
+
+  <p>
+    This is enforced, not merely promised. The page is served with a
+    <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP"
+       target="_blank" rel="noreferrer">Content-Security-Policy</a> that permits
+    resources from this origin and nowhere else. If a tracking script were ever
+    added — by me, by accident, or by someone who got at the repository — your
+    browser would refuse to run it. That is a stronger guarantee than a
+    paragraph of text, because it does not depend on my continued good
+    intentions.
+  </p>
+
+  <h2>What is stored in your browser</h2>
+
+  <p>
+    Two small things, in <code>localStorage</code>, both of them settings you
+    chose yourself:
+  </p>
+
+  <ul>
+    <li><strong>Your theme</strong> — whether you picked light, dark or auto.</li>
+    <li><strong>Your country, and a city if you named one</strong> — so the
+      list opens where you left it instead of asking again.</li>
+  </ul>
+
+  <p>
+    That is the complete list. It never leaves your browser, because there is
+    nowhere for it to be sent: the published site is a handful of static files
+    with no backend, no database and no API. Clearing site data in your browser
+    erases all of it, and the site works exactly as well without it.
+  </p>
+
+  <h2>Location</h2>
+
+  <p>
+    The <strong>Near me</strong> tab can sort venues by distance. If you use it,
+    your browser asks your permission first, and the coordinates it returns stay
+    inside the page — the venue list is already loaded, so the distances are
+    worked out on your own device. Your position is never transmitted, never
+    stored, and is gone when you close the tab.
+  </p>
+
+  <p>
+    If you decline, or never ask, the site guesses a country from your timezone
+    and language settings, which your browser already offers to every page
+    without being asked. That guess is a country name and nothing more — never
+    a position, never an address, and nothing precise enough to say which city
+    you are in. You can overrule it with the country picker.
+  </p>
+
+  <h2>What I can see, and what I cannot</h2>
+
+  <p>
+    I want this section to be accurate rather than impressive, so: I collect
+    nothing, but I am not the only party involved in getting these files to you.
+  </p>
+
+  <p>
+    The site is hosted on <strong>GitHub Pages</strong> and fronted by
+    <strong>Cloudflare's</strong> free CDN. Like every web host on earth, they
+    handle the request itself, which necessarily includes your IP address, and
+    they keep their own operational logs under their own policies —
+    <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
+       target="_blank" rel="noreferrer">GitHub's</a> and
+    <a href="https://www.cloudflare.com/privacypolicy/" target="_blank"
+       rel="noreferrer">Cloudflare's</a>. I do not have access to those logs, I
+    have never looked at aggregate traffic figures, and nothing in that data is
+    tied to anything you did on the page. But it would be wrong to claim that
+    literally nobody observes that a request happened.
+  </p>
+
+  <p>
+    That is the floor for any website that is not run off your own machine. What
+    I can promise is that nothing has been added on top of it.
+  </p>
+
+  <h2>Links that leave this site</h2>
+
+  <p>
+    Venue rows link out to Google Maps, to a Google search for showtimes, and
+    sometimes to the theatre's own website. Those are ordinary links: nothing is
+    requested from Google until you click one, and no script from them runs
+    here. Once you follow a link you are on their site under their rules, which
+    are not these ones.
+  </p>
+
+  <p>
+    Showtimes are linked rather than stored, incidentally, for a licensing
+    reason rather than a privacy one — but the effect is the same, in that
+    nothing about what you searched for is sent anywhere on your behalf.
+  </p>
+
+  <h2>Getting in touch</h2>
+
+  <p>
+    There is no contact form and no email address on this site, which means
+    there is nothing here that collects yours. Reports go to one of two places,
+    both of them public and neither of them mine to hold:
+  </p>
+
+  <ul>
+    <li><strong>Wrong venue data</strong> — a projector, screen size or
+      location — belongs on the
+      <a href="https://imax.fandom.com/wiki/List_of_IMAX_venues" target="_blank"
+         rel="noreferrer">IMAX Wiki</a>, where this site gets it from. Fixing it
+      there reaches everyone rather than just this page, and flows back here on
+      the next sync. It needs no account.</li>
+    <li><strong>A broken link or a bug in the page</strong> goes to
+      <a href="https://github.com/findmaxscreen/findmaxscreen/issues"
+         target="_blank" rel="noreferrer">the issue tracker</a>, which does need
+      a GitHub account — that requirement is what keeps the queue readable.</li>
+  </ul>
+
+  <p>
+    Whichever you use, you are on their site under their privacy policy, not
+    this one. I see what anybody else reading a public wiki page or issue
+    thread sees, and nothing more.
+  </p>
+
+  <h2>How to check all of this yourself</h2>
+
+  <p>
+    None of the above should be taken on trust, and none of it needs to be:
+  </p>
+
+  <ul>
+    <li><strong>Open your browser's developer tools, Network tab, and reload.</strong>
+      You will see requests for this page, one stylesheet, three small scripts
+      and one JSON file of venue data — every one of them from
+      <code>findmaxscreen.com</code>. There is no other domain in the list.</li>
+    <li><strong>Look at the Application or Storage tab.</strong> Cookies: empty.
+      Local storage: the theme and country described above, or nothing at all if
+      you have not changed either.</li>
+    <li><strong>View source.</strong> The site is deliberately small and
+      unminified. The whole thing is roughly 49 KB compressed, and it is meant
+      to be readable.</li>
+    <li><strong>Read the source repository.</strong> Everything that builds and
+      publishes this site is public at
+      <a href="https://github.com/findmaxscreen/findmaxscreen" target="_blank"
+         rel="noreferrer">github.com/findmaxscreen/findmaxscreen</a>, including
+      the deploy workflow, so you can see there is no step where anything is
+      added.</li>
+  </ul>
+
+  <h2>Changes</h2>
+
+  <p>
+    If this ever stops being true, this page changes first and the change is
+    visible in the repository's history. There is no version of this site where
+    a tracker arrives quietly.
+  </p>
+
+  <p class="backlink">
+    <a href="./">← Back to the venue list</a>
+  </p>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="src licence">
+      Venue data from <a href="https://imax.fandom.com/wiki/List_of_IMAX_venues"
+      target="_blank" rel="noreferrer">List of IMAX venues</a> on the IMAX Wiki,
+      reused under <a href="https://creativecommons.org/licenses/by-sa/3.0/"
+      target="_blank" rel="license noreferrer">CC&nbsp;BY-SA&nbsp;3.0</a>. An
+      independent project, not affiliated with or endorsed by IMAX Corporation
+      or Fandom.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
