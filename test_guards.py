@@ -19,7 +19,9 @@ request handler and a unit test of the store would not touch them.
     python3 test_guards.py
 """
 
+import shutil
 import socket
+import tempfile
 import threading
 import unittest
 import urllib.error
@@ -102,6 +104,37 @@ class TestHostHeader(GuardCase):
 
 
 class TestSyncEndpoint(GuardCase):
+    """The sync guards, driven against a throwaway copy of the database.
+
+    The same-origin case below is meant to get past the guards and into the
+    handler - and the handler shells out to `sync.py --db <db_path>` for real.
+    Pointed at the committed database, as it was until this class started
+    swapping it, that made a guard test fetch the live wiki and rewrite
+    production data as a side effect of gate 1. The daily job then reached its
+    own sync step to find the revision already applied ("already at revision
+    2938, nothing to do"), so a bad revision entered the database through a
+    path that never records a snapshot, never reports what changed, and leaves
+    the job unable to commit what it built on.
+
+    The copy keeps the handler honest - it really does run - while the file the
+    repository ships stays untouched.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._tmpdir = tempfile.TemporaryDirectory()
+        scratch = Path(cls._tmpdir.name) / DB.name
+        shutil.copy(DB, scratch)
+        cls._real_db = serve.Handler.db_path
+        serve.Handler.db_path = scratch
+
+    @classmethod
+    def tearDownClass(cls):
+        serve.Handler.db_path = cls._real_db
+        cls._tmpdir.cleanup()
+        super().tearDownClass()
+
     def test_a_cross_origin_post_is_refused(self):
         """The one that matters: a page you visit must not be able to sync."""
         self.assertEqual(

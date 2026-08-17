@@ -456,7 +456,14 @@ def parse_page(wikitext: str) -> tuple[list[dict], dict[str, int], list[str]]:
         raise ParseError("no == section == headings found; page structure changed")
 
     for i in range(1, len(parts), 2):
-        region, body = parts[i], parts[i + 1]
+        # A heading is wikitext like any cell, so it gets the same cleaning.
+        # Every field in a row already went through clean_line() while the
+        # region - the one value that comes from the heading rather than the
+        # table - was taken raw. That held until r2938 wrote
+        # "== Europe<ref>IMAX CoLa</ref> ==" and 94 venues landed in a region
+        # literally named `Europe<ref>IMAX CoLa</ref>`, which nothing caught
+        # until the unknown_region check refused the export.
+        region, body = clean_line(parts[i]), parts[i + 1]
         table_match = _TABLE_RE.search(body)
         if not table_match:
             warnings.append(f"section {region!r} has no table; skipped")
@@ -838,11 +845,17 @@ def main(argv: list[str] | None = None) -> int:
     sha = hashlib.sha256(rev["wikitext"].encode()).hexdigest()
     snapshot = ""
     if not args.dry_run and not args.from_file:
-        SNAPSHOT_DIR.mkdir(exist_ok=True)
+        # The archive belongs beside the database it describes, not beside this
+        # script. A sync pointed at a scratch copy - which is how the guard
+        # tests exercise the endpoint - otherwise writes its snapshot into the
+        # repository's own snapshots/, leaving a file that belongs to no
+        # revision for the daily job to sweep into a commit.
+        snapshot_dir = args.db.resolve().parent / SNAPSHOT_DIR.name
+        snapshot_dir.mkdir(exist_ok=True)
         stamp = re.sub(r"[^0-9A-Za-z]", "", rev["timestamp"])
-        path = SNAPSHOT_DIR / f"{stamp}-r{rev['revid']}.wiki"
+        path = snapshot_dir / f"{stamp}-r{rev['revid']}.wiki"
         path.write_text(rev["wikitext"])
-        snapshot = str(path.relative_to(HERE))
+        snapshot = str(path.relative_to(snapshot_dir.parent))
         say(f"archived snapshot -> {snapshot}")
 
     records, per_region, warnings = parse_page(rev["wikitext"])
