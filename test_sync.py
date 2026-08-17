@@ -363,6 +363,19 @@ class TestMisfiledAndDuplicates(unittest.TestCase):
         self.assertTrue(any("Snack Bar" in w for w in warnings))
         self.assertEqual(len(recs), 3)
 
+    def test_markup_in_a_heading_is_not_part_of_the_region(self):
+        """r2938 footnoted a section heading and took the export down with it.
+
+        The region is the one field that comes from a heading rather than a
+        table cell, and it was the one field never cleaned - so `<ref>` markup
+        became part of the name and only the unknown_region check noticed.
+        """
+        footnoted = EUROPE.replace("== Europe ==",
+                                   "== Europe<ref>IMAX CoLa</ref> ==")
+        recs, per_region, _ = sync.parse_page(footnoted)
+        self.assertEqual(list(per_region), ["Europe"])
+        self.assertEqual({r["region"] for r in recs}, {"Europe"})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
