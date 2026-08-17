@@ -281,6 +281,23 @@ class Handler(BaseHTTPRequestHandler):
 
     do_HEAD = do_GET
 
+    def sync_argv(self) -> list[str]:
+        """The command a sync would run. Split out so a test can read it."""
+        return [sys.executable, str(HERE / "sync.py"),
+                "--db", str(self.db_path), "--json"]
+
+    def _run_sync(self) -> subprocess.CompletedProcess:
+        """Run a sync in a subprocess.
+
+        The one call in this file that reaches the network and writes to the
+        database, and so the one thing a test of the guards cannot afford to
+        let run: the guards all sit in front of it, and proving they work
+        should not cost a wiki fetch and a rewrite of the data. It is its own
+        method purely so the tests can replace it. Nothing else should.
+        """
+        return subprocess.run(self.sync_argv(), capture_output=True,
+                              text=True, timeout=SYNC_TIMEOUT)
+
     def do_POST(self) -> None:
         # POST is the only thing here that changes state - it shells out to
         # sync.py - so it gets the strictest check.
@@ -295,9 +312,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "unknown endpoint"}, 404)
             return
         try:
-            proc = subprocess.run(
-                [sys.executable, str(HERE / "sync.py"), "--db", str(self.db_path), "--json"],
-                capture_output=True, text=True, timeout=SYNC_TIMEOUT)
+            proc = self._run_sync()
         except subprocess.TimeoutExpired:
             self._json({"error": f"sync timed out after {SYNC_TIMEOUT}s"}, 504)
             return

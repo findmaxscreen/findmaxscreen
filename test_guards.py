@@ -19,8 +19,10 @@ request handler and a unit test of the store would not touch them.
     python3 test_guards.py
 """
 
+import json
 import shutil
 import socket
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -103,21 +105,42 @@ class TestHostHeader(GuardCase):
                                               headers={"Host": host}), 200)
 
 
+SYNC_CALLS: list[list[str]] = []
+
+# What sync.py prints on its last line when the wiki has not moved. The stub
+# returns a real summary rather than an empty stdout so the handler takes its
+# success path and the test sees the status a working sync would produce.
+SYNC_SUMMARY = json.dumps({"status": "current", "revid": 2938, "venues": 482,
+                           "added": 0, "removed": 0, "changed": 0, "log": []})
+
+
+def recording_sync(self):
+    """Stand in for the subprocess, recording the command it replaced."""
+    SYNC_CALLS.append(self.sync_argv())
+    return subprocess.CompletedProcess(SYNC_CALLS[-1], 0, SYNC_SUMMARY + "\n", "")
+
+
 class TestSyncEndpoint(GuardCase):
-    """The sync guards, driven against a throwaway copy of the database.
+    """The sync guards, with the sync itself stubbed out.
 
-    The same-origin case below is meant to get past the guards and into the
-    handler - and the handler shells out to `sync.py --db <db_path>` for real.
-    Pointed at the committed database, as it was until this class started
-    swapping it, that made a guard test fetch the live wiki and rewrite
-    production data as a side effect of gate 1. The daily job then reached its
-    own sync step to find the revision already applied ("already at revision
-    2938, nothing to do"), so a bad revision entered the database through a
-    path that never records a snapshot, never reports what changed, and leaves
-    the job unable to commit what it built on.
+    `POST /api/sync` shells out to sync.py, which fetches the live wiki and
+    rewrites the database. Until this class started replacing it, the
+    same-origin case below ran that for real against the committed
+    theatres.sqlite3 - so gate 1 of the daily job was quietly syncing
+    production data, and the job's own sync step then found the revision
+    already applied ("already at revision 2938, nothing to do"). A revision
+    could reach the database through a path that archives no snapshot, reports
+    no diff, and leaves nothing to commit.
 
-    The copy keeps the handler honest - it really does run - while the file the
-    repository ships stays untouched.
+    Stubbing it buys more than speed and an offline test run. A status code
+    only says the handler answered; what these guards exist to prevent is the
+    side effect, and the stub makes the side effect directly observable. The
+    two refusals below now assert that no sync was even attempted, which is
+    the property that actually matters and which a 403 alone never proved.
+
+    The database still points at a throwaway copy, so the command recorded
+    here names a scratch file and this suite cannot touch the real one even if
+    the stub is later removed.
     """
 
     @classmethod
@@ -128,33 +151,55 @@ class TestSyncEndpoint(GuardCase):
         shutil.copy(DB, scratch)
         cls._real_db = serve.Handler.db_path
         serve.Handler.db_path = scratch
+        cls._real_run_sync = serve.Handler._run_sync
+        serve.Handler._run_sync = recording_sync
 
     @classmethod
     def tearDownClass(cls):
+        serve.Handler._run_sync = cls._real_run_sync
         serve.Handler.db_path = cls._real_db
         cls._tmpdir.cleanup()
         super().tearDownClass()
+
+    def setUp(self):
+        SYNC_CALLS.clear()
 
     def test_a_cross_origin_post_is_refused(self):
         """The one that matters: a page you visit must not be able to sync."""
         self.assertEqual(
             self.request("/api/sync", "POST",
                          {"Origin": "https://evil.example"}), 403)
+        self.assertEqual(SYNC_CALLS, [], "a refused request still ran a sync")
 
     def test_a_rebound_host_cannot_reach_sync(self):
         self.assertEqual(
             self.request("/api/sync", "POST", {"Host": "evil.example"}), 403)
+        self.assertEqual(SYNC_CALLS, [], "a refused request still ran a sync")
 
     def test_same_origin_is_allowed_through_the_guards(self):
         """A request from the admin page must not be blocked.
 
         This is the other half: guards that also stop legitimate use are a bug.
-        Only the guards are under test, so any status other than 403 means the
-        request got past them and into the handler.
         """
         status = self.request("/api/sync", "POST",
                               {"Origin": f"http://127.0.0.1:{self.port}"})
         self.assertNotEqual(status, 403)
+        self.assertEqual(len(SYNC_CALLS), 1, "the request never reached the sync")
+
+    def test_the_stubbed_command_is_the_one_that_would_have_run(self):
+        """Guard against the stub drifting from the code it stands in for.
+
+        A stub that no longer resembles the real invocation would keep passing
+        while the thing it models had changed underneath it, so assert the
+        argv the handler builds - including that it names the database it was
+        given, which is what kept this suite off the committed file.
+        """
+        self.request("/api/sync", "POST",
+                     {"Origin": f"http://127.0.0.1:{self.port}"})
+        argv = SYNC_CALLS[0]
+        self.assertEqual(argv[1], str(serve.HERE / "sync.py"))
+        self.assertEqual(argv[2:], ["--db", str(serve.Handler.db_path), "--json"])
+        self.assertNotEqual(Path(argv[3]), DB, "a test pointed sync at the real database")
 
     def test_sync_is_the_only_post_route(self):
         self.assertEqual(self.request("/api/anything", "POST"), 404)
