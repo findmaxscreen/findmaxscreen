@@ -316,8 +316,16 @@ class TestGeoBlock(BundleCase):
     def test_every_country_in_the_data_can_be_recognised(self):
         """A visitor's country is matched by name; an unmapped one is invisible."""
         named = set(self.payload["geo"]["countries"].values())
-        present = {v["country"] for v in self.live}
-        self.assertEqual(sorted(present - named), [])
+        unmapped = {}
+        for v in self.live:
+            if v["country"] not in named:
+                unmapped.setdefault(v["country"], []).append(
+                    f"{v['name']} ({v.get('state') or '-'}, {v['city']})")
+        self.assertEqual(unmapped, {},
+                         "countries with no ISO code in export.COUNTRY_CODES. "
+                         "A two-letter 'country' is usually a rowspan that "
+                         "slid a state into the country column; see the "
+                         "sync log for 'rowspan ... ends one row early'.")
 
 
 if __name__ == "__main__":

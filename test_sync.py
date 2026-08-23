@@ -377,5 +377,105 @@ class TestMisfiledAndDuplicates(unittest.TestCase):
         self.assertEqual({r["region"] for r in recs}, {"Europe"})
 
 
+
+# A hand-maintained rowspan drifts. Real case: r2940 added a 23rd Canadian
+# venue under rowspan="22", so its province slid into the country column.
+ROWSPAN_SHORT = """== Americas ==
+{| class="sortable fandom-table"
+!Country
+!State
+!City
+!Location Name
+!Screen Aspect Ratio (AR)
+!Digital Projector
+!Maximum AR for digital projection
+!Film Projector
+!Screen dimensions
+!Commercial films shown?
+|-
+| rowspan="1" |Canada
+|QC
+|Montreal
+|Cinéma Banque Scotia Montréal & IMAX
+|1.90:1
+|IMAX CoLa
+|1.90:1
+|
+|18.7mx24.9m
+|No
+|-
+|SK
+|[[Regina, Saskatchewan|Regina]]
+| Kramer IMAX, Saskatchewan Science Centre
+|1.43:1
+|IMAX GT Laser
+|1.43:1
+|IMAX SR 15/70 mm
+|21.94m×15.84m
+|Yes
+|-
+| rowspan="2" | Colombia
+|Antioquia
+|Medellín
+|Cinépolis Santafé & IMAX
+|1.90:1
+|IMAX Digital
+|1.90:1
+|
+|
+|Yes
+|-
+|Bogotá
+|Bogotá
+|Cine Colombia Andino & IMAX
+|1.90:1
+|IMAX Digital
+|1.90:1
+|
+|
+|Yes
+|}
+"""
+
+# The mirror: a span one row too long swallows the next country's own cell.
+ROWSPAN_LONG = ROWSPAN_SHORT.replace('rowspan="1" |Canada', 'rowspan="3" |Canada')
+
+
+class TestRowspanDrift(unittest.TestCase):
+    def test_undercounted_rowspan_is_extended(self):
+        venues, regions, warnings = records(ROWSPAN_SHORT)
+        v = venues["Kramer IMAX, Saskatchewan Science Centre"]
+        self.assertEqual((v["country"], v["state"], v["city"]),
+                         ("Canada", "SK", "Regina"))
+        self.assertEqual(v["film_projector"], "IMAX SR 15/70 mm")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("'Canada'", warnings[0])
+        self.assertIn("ends one row early", warnings[0])
+        self.assertIn("Kramer IMAX", warnings[0])
+
+    def test_undercounted_rowspan_does_not_disturb_the_next_country(self):
+        venues, regions, warnings = records(ROWSPAN_SHORT)
+        self.assertEqual(regions, {"Americas": 4})
+        self.assertEqual(venues["Cinépolis Santafé & IMAX"]["country"], "Colombia")
+        self.assertEqual(venues["Cinépolis Santafé & IMAX"]["state"], "Antioquia")
+        self.assertEqual(venues["Cine Colombia Andino & IMAX"]["country"], "Colombia")
+        self.assertEqual(venues["Cine Colombia Andino & IMAX"]["state"], "Bogotá")
+
+    def test_overcounted_rowspan_is_cut_short(self):
+        venues, regions, warnings = records(ROWSPAN_LONG)
+        self.assertEqual(regions, {"Americas": 4})
+        v = venues["Cinépolis Santafé & IMAX"]
+        self.assertEqual((v["country"], v["state"], v["city"]),
+                         ("Colombia", "Antioquia", "Medellín"))
+        self.assertEqual(venues["Cine Colombia Andino & IMAX"]["country"], "Colombia")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("runs one row long", warnings[0])
+
+    def test_correct_rowspans_produce_no_warning(self):
+        _, _, warnings = records(ROWSPAN_SHORT.replace('rowspan="1" |Canada',
+                                                        'rowspan="2" |Canada'))
+        self.assertEqual(warnings, [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -177,8 +177,23 @@ def parse_cells(chunk: str, marker: str = "|") -> list[list]:
     return cells
 
 
-def parse_table(table: str) -> tuple[list[str], list[list[str]]]:
-    """Return (header_texts, rows) with rowspans expanded into every row."""
+def parse_table(table: str, warnings: list[str] | None = None
+                ) -> tuple[list[str], list[list[str]]]:
+    """Return (header_texts, rows) with rowspans expanded into every row.
+
+    A rowspan is a count the editor maintains by hand, and it drifts: r2940
+    added a 23rd Canadian venue under `rowspan="22"`, so the last row (Kramer
+    IMAX, Regina) fell out of the span and every cell slid one column left -
+    its province "SK" became its country, and the export refused to build.
+
+    The table's own shape gives the drift away. Every data row writes every
+    cell, even empty ones, so a row with fewer cells than there are uncovered
+    columns is sitting under a span that ended one row too early; a row with
+    more is under one that runs one row too long. Both are repaired here - the
+    span that ended on the previous row is extended, or the span on its last
+    row is cut short - and each repair is reported through `warnings`, so the
+    sync log names the row rather than leaving a phantom country to explain.
+    """
     lines = table.split("\n")
     header_idx = [i for i, ln in enumerate(lines) if ln.startswith("!")]
     headers = [clean_line(c[0]) for c in
@@ -191,27 +206,61 @@ def parse_table(table: str) -> tuple[list[str], list[list[str]]]:
 
     ncols = len(headers)
     rows: list[list[str]] = []
+    # col -> [content, rows still to cover, index of the last row it covered]
     pending: dict[int, list] = {}
+
+    def describe(cells: list[list]) -> str:
+        return " | ".join(clean_line(c[0]) for c in cells[:4])
 
     for chunk in _ROW_SPLIT_RE.split(body):
         cells = parse_cells(chunk)
-        if not cells and not pending:
-            continue
-        if not cells and pending:
+        if not cells:
             # A row consisting only of carried-over cells is not a real venue.
             continue
+        rowno = len(rows)
+        active = {col: p for col, p in pending.items() if p[1] > 0}
+        uncovered = ncols - len(active)
+
+        if len(cells) < uncovered:
+            # Short by k: the k leftmost spans that ended on the previous row
+            # were undercounted. Extend each by this row.
+            ended = sorted(col for col, p in pending.items()
+                           if p[1] == 0 and p[2] == rowno - 1)
+            for col in ended[:uncovered - len(cells)]:
+                pending[col][1] = 1
+                active[col] = pending[col]
+                if warnings is not None:
+                    warnings.append(
+                        f"rowspan for {clean_line(pending[col][0])!r} "
+                        f"(column {headers[col]!r}) ends one row early; "
+                        f"extended to cover: {describe(cells)}")
+        elif len(cells) > uncovered:
+            # Long by k: the k leftmost spans on their final row were
+            # overcounted. Release them so this row's own cells land.
+            ending = sorted(col for col, p in active.items() if p[1] == 1)
+            for col in ending[:len(cells) - uncovered]:
+                pending[col][1] = 0
+                del active[col]
+                if warnings is not None:
+                    warnings.append(
+                        f"rowspan for {clean_line(pending[col][0])!r} "
+                        f"(column {headers[col]!r}) runs one row long; "
+                        f"cut before: {describe(cells)}")
+
         values: list[str] = []
         idx = 0
         for col in range(ncols):
-            carried = pending.get(col)
-            if carried and carried[1] > 0:
+            carried = active.get(col)
+            if carried:
                 values.append(carried[0])
                 carried[1] -= 1
+                carried[2] = rowno
             elif idx < len(cells):
                 content, span = cells[idx]
                 idx += 1
-                if span > 1:
-                    pending[col] = [content, span - 1]
+                # Recorded even for a single-row cell: a forgotten or
+                # unbumped rowspan looks identical from the row below.
+                pending[col] = [content, span - 1, rowno]
                 values.append(content)
             else:
                 values.append("")
@@ -468,7 +517,7 @@ def parse_page(wikitext: str) -> tuple[list[dict], dict[str, int], list[str]]:
         if not table_match:
             warnings.append(f"section {region!r} has no table; skipped")
             continue
-        headers, rows = parse_table(table_match.group(0))
+        headers, rows = parse_table(table_match.group(0), warnings)
         mapping, unknown = map_columns(headers)
         for col in unknown:
             warnings.append(f"section {region!r}: unmapped column {col!r}")
