@@ -477,5 +477,48 @@ class TestRowspanDrift(unittest.TestCase):
         self.assertEqual(warnings, [])
 
 
+# A stray `|` on its own line before a row's first real cell. Real case: r2951
+# added Egypt under one, and every cell slid a column right - the city became
+# the country - so one row failed validation for the whole revision.
+STRAY_LEADING_CELL = EUROPE.replace("|-\n|Belgium", "|-\n|\n|Belgium")
+
+# The same stray separator, but under a rowspan that is on its final row.
+# Without the trim the surplus would be blamed on the span, and Vienna would
+# lose Austria.
+STRAY_LEADING_CELL_UNDER_SPAN = EUROPE.replace(
+    "|-\n|[[Vienna]]", "|-\n|\n|[[Vienna]]")
+
+
+class TestStrayLeadingCell(unittest.TestCase):
+    def test_leading_empty_cell_is_dropped(self):
+        venues, regions, warnings = records(STRAY_LEADING_CELL)
+        self.assertEqual(regions, {"Europe": 3})
+        v = venues["Kinepolis Brussels & IMAX"]
+        self.assertEqual((v["country"], v["city"]), ("Belgium", "Brussels"))
+        self.assertTrue(v["has_70mm"])
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("stray empty cell", warnings[0])
+        self.assertIn("Belgium | Brussels", warnings[0])
+
+    def test_leading_empty_cell_does_not_disturb_a_rowspan(self):
+        venues, regions, warnings = records(STRAY_LEADING_CELL_UNDER_SPAN)
+        self.assertEqual(regions, {"Europe": 3})
+        v = venues["CineplexX Apollo Vienna & IMAX"]
+        self.assertEqual((v["country"], v["city"]), ("Austria", "Vienna"))
+        self.assertEqual(venues["Kinepolis Brussels & IMAX"]["country"], "Belgium")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("stray empty cell", warnings[0])
+
+    def test_a_blank_first_cell_in_a_well_formed_row_is_data(self):
+        # A row under a country's span may legitimately leave its state blank;
+        # it is not over-long, so nothing is trimmed and nothing is reported.
+        blank_state = AMERICAS.replace("|Bahia\n|Salvador", "|\n|Salvador")
+        venues, _, warnings = records(blank_state)
+        v = venues["UCI Orient Shopping da Bahia"]
+        self.assertEqual((v["country"], v["state"], v["city"]),
+                         ("Brazil", "", "Salvador"))
+        self.assertEqual(warnings, [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

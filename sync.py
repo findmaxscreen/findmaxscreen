@@ -193,6 +193,13 @@ def parse_table(table: str, warnings: list[str] | None = None
     span that ended on the previous row is extended, or the span on its last
     row is cut short - and each repair is reported through `warnings`, so the
     sync log names the row rather than leaving a phantom country to explain.
+
+    A row can also be long for a reason no rowspan explains: a stray `|` on a
+    line of its own before the first real cell. r2951 added Egypt that way, and
+    every cell slid one column *right* - the city read as the country, the
+    venue as the city - so validation refused the whole revision over one row.
+    An empty leading cell in an over-long row carries nothing; it is dropped,
+    and reported, before the surplus is blamed on a span.
     """
     lines = table.split("\n")
     header_idx = [i for i, ln in enumerate(lines) if ln.startswith("!")]
@@ -220,6 +227,17 @@ def parse_table(table: str, warnings: list[str] | None = None
         rowno = len(rows)
         active = {col: p for col, p in pending.items() if p[1] > 0}
         uncovered = ncols - len(active)
+
+        while len(cells) > uncovered and not clean_line(cells[0][0]):
+            # A row that is both over-long and opens with a blank is not
+            # data: its first written cell is the country, which is required,
+            # or a state under a country's span, in which case the row is not
+            # over-long. Either way the blank is a stray separator.
+            cells.pop(0)
+            if warnings is not None:
+                warnings.append(
+                    f"stray empty cell before the first column; dropped, "
+                    f"so the row reads: {describe(cells)}")
 
         if len(cells) < uncovered:
             # Short by k: the k leftmost spans that ended on the previous row
