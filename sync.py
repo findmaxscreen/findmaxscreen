@@ -36,6 +36,8 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_DB = HERE / "theatres.sqlite3"
 SCHEMA = HERE / "schema.sql"
 SNAPSHOT_DIR = HERE / "snapshots"
+# Rows the wiki holds that this mirror refuses to carry. See load_suppressions.
+SUPPRESSED = HERE / "suppressed.json"
 
 API = "https://imax.fandom.com/api.php"
 PAGE_TITLE = "List_of_IMAX_venues"
@@ -512,11 +514,46 @@ def build_record(region: str, fields: dict[str, str]) -> dict:
     }
 
 
-def parse_page(wikitext: str) -> tuple[list[dict], dict[str, int], list[str]]:
-    """Parse the whole page into venue records, per-region counts and warnings."""
+def load_suppressions(path: Path = SUPPRESSED) -> dict[str, str]:
+    """Return {venue_key: reason} for rows the mirror should not carry.
+
+    The site mirrors the wiki, and the wiki is edited by anyone. r2950 added
+    four African venues in one sitting - "Nairocinema & IMAX" in Casablanca,
+    "IMAX Cairojector", a 1.90:2 screen - none of which exists. The right fix
+    is upstream, but until it lands the mirror would publish them. This file
+    names the rows to hold back, each with the reason and the revision that
+    brought it, so the list reads as a record rather than a blocklist.
+
+    An entry is a temporary measure. parse_page warns when one matches no
+    row any more, which is the cue that upstream has fixed it and the entry
+    can go.
+    """
+    if not path.is_file():
+        return {}
+    entries = json.loads(path.read_text())
+    if not isinstance(entries, list):
+        raise ParseError(f"{path.name}: expected a list of entries")
+    suppressed: dict[str, str] = {}
+    for entry in entries:
+        key, reason = entry.get("venue_key", ""), entry.get("reason", "")
+        if not key or not reason:
+            raise ParseError(f"{path.name}: every entry needs a venue_key and a reason")
+        suppressed[key] = reason
+    return suppressed
+
+
+def parse_page(wikitext: str, suppressed: dict[str, str] | None = None
+               ) -> tuple[list[dict], dict[str, int], list[str]]:
+    """Parse the whole page into venue records, per-region counts and warnings.
+
+    `suppressed` maps venue_key to a reason; a row whose key is listed is
+    dropped and reported. See load_suppressions.
+    """
     warnings: list[str] = []
     records: list[dict] = []
     per_region: dict[str, int] = {}
+    suppressed = dict(suppressed or {})
+    unmatched = set(suppressed)
 
     parts = _SECTION_RE.split(wikitext)
     if len(parts) < 3:
@@ -546,6 +583,12 @@ def parse_page(wikitext: str) -> tuple[list[dict], dict[str, int], list[str]]:
             record = build_record(region, fields)
             if not record["name"] or not record["venue_key"]:
                 continue
+            if record["venue_key"] in suppressed:
+                unmatched.discard(record["venue_key"])
+                warnings.append(
+                    f"suppressed {record['name']!r} ({record['venue_key']}): "
+                    f"{suppressed[record['venue_key']]}")
+                continue
             records.append(record)
             kept += 1
         per_region[region] = kept
@@ -561,6 +604,11 @@ def parse_page(wikitext: str) -> tuple[list[dict], dict[str, int], list[str]]:
             note = f"duplicate of another row with the same country/state/city/name"
             record["data_notes"] = "; ".join(filter(None, (record["data_notes"], note)))
             warnings.append(f"duplicate venue key {key!r} ({record['name']})")
+
+    for key in sorted(unmatched):
+        warnings.append(
+            f"suppression for {key!r} matched no row; if upstream has fixed "
+            f"it, remove the entry from {SUPPRESSED.name}")
 
     return records, per_region, warnings
 
@@ -925,7 +973,7 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = str(path.relative_to(snapshot_dir.parent))
         say(f"archived snapshot -> {snapshot}")
 
-    records, per_region, warnings = parse_page(rev["wikitext"])
+    records, per_region, warnings = parse_page(rev["wikitext"], load_suppressions())
 
     say()
     for region, count in per_region.items():

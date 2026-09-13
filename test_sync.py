@@ -10,6 +10,7 @@ every observed spelling of the projector names.
 """
 
 import unittest
+from pathlib import Path
 
 import sync
 
@@ -518,6 +519,58 @@ class TestStrayLeadingCell(unittest.TestCase):
         self.assertEqual((v["country"], v["state"], v["city"]),
                          ("Brazil", "", "Salvador"))
         self.assertEqual(warnings, [])
+
+
+class TestSuppressions(unittest.TestCase):
+    """suppressed.json holds back wiki rows the mirror should not carry."""
+
+    BRUSSELS = "belgium||brussels|kinepolisbrusselsimax"
+
+    def test_a_listed_row_is_dropped_and_reported(self):
+        venues, regions, warnings = records_with(
+            EUROPE, {self.BRUSSELS: "no such venue"})
+        self.assertNotIn("Kinepolis Brussels & IMAX", venues)
+        self.assertEqual(regions, {"Europe": 2})
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("suppressed 'Kinepolis Brussels & IMAX'", warnings[0])
+        self.assertIn("no such venue", warnings[0])
+
+    def test_an_entry_that_matches_nothing_is_flagged_as_stale(self):
+        venues, regions, warnings = records_with(
+            EUROPE, {"egypt||cairo|citycairocinemaimax": "gone upstream"})
+        self.assertEqual(regions, {"Europe": 3})
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("matched no row", warnings[0])
+        self.assertIn("suppressed.json", warnings[0])
+
+    def test_no_suppressions_changes_nothing(self):
+        self.assertEqual(records_with(EUROPE, None), records(EUROPE))
+        self.assertEqual(records_with(EUROPE, {}), records(EUROPE))
+
+    def test_loader_reads_the_file_and_tolerates_its_absence(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "suppressed.json"
+            self.assertEqual(sync.load_suppressions(path), {})
+            path.write_text(json.dumps([
+                {"venue_key": "a||b|c", "reason": "why", "added": "2026-09-14"}]))
+            self.assertEqual(sync.load_suppressions(path), {"a||b|c": "why"})
+            path.write_text(json.dumps([{"venue_key": "a||b|c"}]))
+            with self.assertRaises(sync.ParseError):
+                sync.load_suppressions(path)
+
+    def test_the_real_file_names_only_rows_with_reasons(self):
+        # The committed file is data the daily job trusts; every entry must be
+        # loadable, and every reason must say something.
+        for key, reason in sync.load_suppressions().items():
+            self.assertEqual(key.count("|"), 3, key)
+            self.assertGreater(len(reason), 10, key)
+
+
+def records_with(wikitext, suppressed):
+    recs, per_region, warnings = sync.parse_page(wikitext, suppressed)
+    return {r["name"]: r for r in recs}, per_region, warnings
 
 
 if __name__ == "__main__":
