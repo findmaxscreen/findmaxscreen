@@ -1,0 +1,26 @@
+[
+  {
+    "venue_key": "angola||luanda|luandacinemaimax",
+    "reason": "no such venue; Luanda's IMAX is ZAP Cinemas & IMAX, Talatona",
+    "wiki_revision": 2950,
+    "added": "2026-09-14"
+  },
+  {
+    "venue_key": "egypt||cairo|citycairocinemaimax",
+    "reason": "no such venue or projector ('IMAX Cairojector'); Cairo's IMAX screens are Etisalat, VOX Al Mazza, Scene Cinemas and Premiere Sheikh Zayed",
+    "wiki_revision": 2950,
+    "added": "2026-09-14"
+  },
+  {
+    "venue_key": "kenya||casablanca|nairocinemaimax",
+    "reason": "no such venue; Casablanca is in Morocco, 1.90:2 is not an aspect ratio; Kenya's IMAX is Century Cinemax Garden City Mall, Nairobi",
+    "wiki_revision": 2950,
+    "added": "2026-09-14"
+  },
+  {
+    "venue_key": "nigeria||abuja|cineabujaimax",
+    "reason": "no IMAX in Abuja; Nigeria's screens are Filmhouse Lekki and Circle Mall, Lagos",
+    "wiki_revision": 2950,
+    "added": "2026-09-14"
+  }
+]

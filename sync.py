@@ -36,6 +36,8 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_DB = HERE / "theatres.sqlite3"
 SCHEMA = HERE / "schema.sql"
 SNAPSHOT_DIR = HERE / "snapshots"
+# Rows the wiki holds that this mirror refuses to carry. See load_suppressions.
+SUPPRESSED = HERE / "suppressed.json"
 
 API = "https://imax.fandom.com/api.php"
 PAGE_TITLE = "List_of_IMAX_venues"
@@ -193,6 +195,13 @@ def parse_table(table: str, warnings: list[str] | None = None
     span that ended on the previous row is extended, or the span on its last
     row is cut short - and each repair is reported through `warnings`, so the
     sync log names the row rather than leaving a phantom country to explain.
+
+    A row can also be long for a reason no rowspan explains: a stray `|` on a
+    line of its own before the first real cell. r2951 added Egypt that way, and
+    every cell slid one column *right* - the city read as the country, the
+    venue as the city - so validation refused the whole revision over one row.
+    An empty leading cell in an over-long row carries nothing; it is dropped,
+    and reported, before the surplus is blamed on a span.
     """
     lines = table.split("\n")
     header_idx = [i for i, ln in enumerate(lines) if ln.startswith("!")]
@@ -220,6 +229,17 @@ def parse_table(table: str, warnings: list[str] | None = None
         rowno = len(rows)
         active = {col: p for col, p in pending.items() if p[1] > 0}
         uncovered = ncols - len(active)
+
+        while len(cells) > uncovered and not clean_line(cells[0][0]):
+            # A row that is both over-long and opens with a blank is not
+            # data: its first written cell is the country, which is required,
+            # or a state under a country's span, in which case the row is not
+            # over-long. Either way the blank is a stray separator.
+            cells.pop(0)
+            if warnings is not None:
+                warnings.append(
+                    f"stray empty cell before the first column; dropped, "
+                    f"so the row reads: {describe(cells)}")
 
         if len(cells) < uncovered:
             # Short by k: the k leftmost spans that ended on the previous row
@@ -494,11 +514,46 @@ def build_record(region: str, fields: dict[str, str]) -> dict:
     }
 
 
-def parse_page(wikitext: str) -> tuple[list[dict], dict[str, int], list[str]]:
-    """Parse the whole page into venue records, per-region counts and warnings."""
+def load_suppressions(path: Path = SUPPRESSED) -> dict[str, str]:
+    """Return {venue_key: reason} for rows the mirror should not carry.
+
+    The site mirrors the wiki, and the wiki is edited by anyone. r2950 added
+    four African venues in one sitting - "Nairocinema & IMAX" in Casablanca,
+    "IMAX Cairojector", a 1.90:2 screen - none of which exists. The right fix
+    is upstream, but until it lands the mirror would publish them. This file
+    names the rows to hold back, each with the reason and the revision that
+    brought it, so the list reads as a record rather than a blocklist.
+
+    An entry is a temporary measure. parse_page warns when one matches no
+    row any more, which is the cue that upstream has fixed it and the entry
+    can go.
+    """
+    if not path.is_file():
+        return {}
+    entries = json.loads(path.read_text())
+    if not isinstance(entries, list):
+        raise ParseError(f"{path.name}: expected a list of entries")
+    suppressed: dict[str, str] = {}
+    for entry in entries:
+        key, reason = entry.get("venue_key", ""), entry.get("reason", "")
+        if not key or not reason:
+            raise ParseError(f"{path.name}: every entry needs a venue_key and a reason")
+        suppressed[key] = reason
+    return suppressed
+
+
+def parse_page(wikitext: str, suppressed: dict[str, str] | None = None
+               ) -> tuple[list[dict], dict[str, int], list[str]]:
+    """Parse the whole page into venue records, per-region counts and warnings.
+
+    `suppressed` maps venue_key to a reason; a row whose key is listed is
+    dropped and reported. See load_suppressions.
+    """
     warnings: list[str] = []
     records: list[dict] = []
     per_region: dict[str, int] = {}
+    suppressed = dict(suppressed or {})
+    unmatched = set(suppressed)
 
     parts = _SECTION_RE.split(wikitext)
     if len(parts) < 3:
@@ -528,6 +583,12 @@ def parse_page(wikitext: str) -> tuple[list[dict], dict[str, int], list[str]]:
             record = build_record(region, fields)
             if not record["name"] or not record["venue_key"]:
                 continue
+            if record["venue_key"] in suppressed:
+                unmatched.discard(record["venue_key"])
+                warnings.append(
+                    f"suppressed {record['name']!r} ({record['venue_key']}): "
+                    f"{suppressed[record['venue_key']]}")
+                continue
             records.append(record)
             kept += 1
         per_region[region] = kept
@@ -543,6 +604,11 @@ def parse_page(wikitext: str) -> tuple[list[dict], dict[str, int], list[str]]:
             note = f"duplicate of another row with the same country/state/city/name"
             record["data_notes"] = "; ".join(filter(None, (record["data_notes"], note)))
             warnings.append(f"duplicate venue key {key!r} ({record['name']})")
+
+    for key in sorted(unmatched):
+        warnings.append(
+            f"suppression for {key!r} matched no row; if upstream has fixed "
+            f"it, remove the entry from {SUPPRESSED.name}")
 
     return records, per_region, warnings
 
@@ -907,7 +973,7 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = str(path.relative_to(snapshot_dir.parent))
         say(f"archived snapshot -> {snapshot}")
 
-    records, per_region, warnings = parse_page(rev["wikitext"])
+    records, per_region, warnings = parse_page(rev["wikitext"], load_suppressions())
 
     say()
     for region, count in per_region.items():

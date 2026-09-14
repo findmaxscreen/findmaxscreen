@@ -21,6 +21,14 @@ Fandom answers plain fetches with HTTP 402 anyway — and the API hands back a
 revision id, which is the natural change-detection key. If the revision has not
 moved, the sync stops. Most days that is the entire run.
 
+The one exception to mirroring is `suppressed.json`: a short list of venue keys
+the sync drops on the way in, each with the reason and the wiki revision that
+brought it. It exists because anyone can edit the wiki, and r2950 added four
+African venues that do not exist. The fix belongs upstream; the list is what
+keeps them off the site until it lands. Every suppressed row is named in the
+sync log, and an entry that no longer matches any row is flagged so it can be
+removed rather than outlive its purpose.
+
 **OpenStreetMap supplies what the wiki lacks.** The wiki has no coordinates, so
 `geocode.py` fetches them from Nominatim. OSM rather than Google is a licensing
 decision, not a technical one: Google's terms cap caching at 30 days and tie
@@ -164,6 +172,7 @@ export.py          theatres.sqlite3 -> web/data/venues.json -> dist/
 serve.py           local server: the site, a read-only API, and the admin page
 
 schema.sql         one venues table, an FTS index, revisions, venue_changes
+suppressed.json    wiki rows held back from the mirror, each with its reason
 theatres.sqlite3   the data and its entire history — committed on purpose
 
 web/index.html     page shell and the inline icon sprite

@@ -115,15 +115,18 @@ EXPORT_COLUMNS = (
 # timezone into one of these codes; this is what maps it back to the spelling
 # the wiki uses, so "IN" finds the venues filed under "India".
 COUNTRY_CODES = {
-    "AW": "Aruba", "AU": "Australia", "AT": "Austria", "BS": "Bahamas",
+    "AO": "Angola", "AW": "Aruba", "AU": "Australia", "AT": "Austria",
+    "BS": "Bahamas",
     "BH": "Bahrain", "BE": "Belgium", "BR": "Brazil", "CA": "Canada",
     "CN": "China", "CO": "Colombia", "CW": "Curaçao", "CZ": "Czechia",
-    "EC": "Ecuador", "FI": "Finland", "FR": "France", "DE": "Germany",
+    "EC": "Ecuador", "EG": "Egypt", "FI": "Finland", "FR": "France",
+    "DE": "Germany",
     "GR": "Greece", "HK": "Hong Kong", "IN": "India", "ID": "Indonesia",
-    "IE": "Ireland", "IT": "Italy", "JP": "Japan", "XK": "Kosovo",
+    "IE": "Ireland", "IT": "Italy", "JP": "Japan", "KE": "Kenya", "XK": "Kosovo",
     "KW": "Kuwait", "LV": "Latvia", "LT": "Lithuania", "LU": "Luxembourg",
     "MY": "Malaysia", "MX": "Mexico", "MA": "Morocco", "NL": "Netherlands",
-    "NZ": "New Zealand", "NO": "Norway", "OM": "Oman", "PE": "Peru",
+    "NZ": "New Zealand", "NG": "Nigeria", "NO": "Norway", "OM": "Oman",
+    "PE": "Peru",
     "PH": "Philippines", "PL": "Poland", "PT": "Portugal", "QA": "Qatar",
     "SA": "Saudi Arabia", "RS": "Serbia", "SG": "Singapore",
     "ZA": "South Africa", "KR": "South Korea", "ES": "Spain",
