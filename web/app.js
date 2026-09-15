@@ -208,7 +208,8 @@ function activeFilters() {
     add(`“${CONTROLS.q.value.trim()}”`, () => { CONTROLS.q.value = ""; });
   }
   if (isOn(CONTROLS.film70)) {
-    add("70 mm film", () => setOn(CONTROLS.film70, false));
+    chips.push({ label: "15/70 film", cls: "film",
+                 clear: () => setOn(CONTROLS.film70, false) });
   }
   if (isOn(CONTROLS.dome)) add("Dome", () => setOn(CONTROLS.dome, false));
   if (isOn(CONTROLS.commercial)) {
@@ -268,7 +269,7 @@ function renderActiveFilters() {
   const box = $("af-chips");
   box.replaceChildren();
   for (const chip of chips) {
-    const button = el("button", "chip");
+    const button = el("button", chip.cls ? `chip ${chip.cls}` : "chip");
     button.type = "button";
     button.append(document.createTextNode(chip.label), icon("cross"));
     button.title = `Remove this filter`;
@@ -380,8 +381,12 @@ function venueCard(v) {
   main.append(el("h3", null, v.name));
 
   const where = el("p", "where");
-  where.append(icon("pin"), document.createTextNode(
-    [v.city, v.state, v.country].filter(Boolean).join(", ")));
+  // Under a country-and-region heading the row need only say the city; in
+  // any other order the heading is gone and the row has to say it all.
+  const grouped = CONTROLS.sort.value === "location" && state.tab !== "nearme";
+  where.append(icon("pin"), document.createTextNode(grouped
+    ? (v.city || v.state || v.country)
+    : [v.city, v.state, v.country].filter(Boolean).join(", ")));
   // Only present when the list is ordered by distance, and rounded hard: half
   // these venues are located to their city, so a decimal would be a precision
   // the data does not have.
@@ -505,9 +510,18 @@ function myCountryBanner() {
   box.append(answer);
 
   if (yes) {
-    box.append(el("p", null,
-      `${plural(report.film70, "theatre")} in ${country} still `
-      + `${report.film70 === 1 ? "runs" : "run"} real film.`));
+    // Up to three, the answer to "which one" fits in the sentence, so it goes
+    // there rather than five rows down the list.
+    const houses = state.venues.filter((v) =>
+      v.country === country && v.has_70mm === 1 && v.removed_at === null);
+    let line = `${plural(report.film70, "theatre")} in ${country} still `
+      + `${report.film70 === 1 ? "runs" : "run"} real film`;
+    if (houses.length && houses.length <= 3) {
+      const names = houses.map((v) => v.city ? `${v.name} (${v.city})` : v.name);
+      line += `: ${names.length === 1 ? names[0]
+        : names.slice(0, -1).join(", ") + " and " + names[names.length - 1]}`;
+    }
+    box.append(el("p", null, line + "."));
   } else if (report.nearby.length) {
     const nearest = report.nearby.slice(0, 4)
       .map((c) => `${c.country} (${c.n})`).join(", ");
@@ -881,9 +895,22 @@ function render() {
     // stylesheet steps through. Decorative: the two lines under it say what
     // happened, so it carries no text and reduced-motion gets the last frame.
     empty.append(el("div", "mascot unfurl"));
-    empty.append(el("p", "big", "Nothing matches all of that."));
+    empty.append(el("p", "big", "Nothing matches."));
     empty.append(el("p", null,
       "IMAX is a short list to begin with — try dropping a filter."));
+    const ways = el("div", "ways");
+    const clear = el("button", "ghost");
+    clear.type = "button";
+    clear.append(icon("cross"), document.createTextNode("Clear the filters"));
+    clear.addEventListener("click", () => { resetFilters(); update(); });
+    const film = el("button", "ghost");
+    film.type = "button";
+    film.append(icon("film"), document.createTextNode("Show every film theatre"));
+    film.addEventListener("click", () => {
+      resetFilters(); setOn(CONTROLS.film70, true); update();
+    });
+    ways.append(clear, film);
+    empty.append(ways);
     results.append(empty);
     countEl.textContent = "";
     renderPagers(null, 0);
@@ -893,7 +920,10 @@ function render() {
 
   // Clamped rather than trusted: a filter change can shrink the result set
   // below the page you were on.
-  const slice = paginate(result.total, state.page, PAGE_SIZE);
+  // The film houses are the list people came for, and there are few enough
+  // to show at once; everything else pages.
+  const size = c.film70 ? Math.max(result.total, 1) : PAGE_SIZE;
+  const slice = paginate(result.total, state.page, size);
   state.page = slice.page;
   const page = result.venues.slice(slice.from, slice.to);
 
@@ -1257,6 +1287,15 @@ function wire() {
   // attribute in the HTML, which the site's CSP now refuses to run.
   $("controls").addEventListener("submit", (event) => event.preventDefault());
 
+  // The film count in the masthead is the fastest route to the film houses:
+  // one press, worldwide, no scrolling to the strip.
+  $("stat-film70").addEventListener("click", () => {
+    setOn(CONTROLS.film70, true);
+    CONTROLS.country.value = "";
+    state.countryAuto = false;
+    setTab("all");
+  });
+
   CONTROLS.q.addEventListener("input", debounce(update, 160));
   // The mascot on the strip searches while you type: the loop starts on the
   // first keystroke and runs until the results have been on screen for a
@@ -1442,7 +1481,8 @@ async function start() {
   // The three numbers beside the question.
   const s = data.stats;
   for (const [id, n] of [["stat-film70", s.film70], ["stat-venues", s.venues],
-                         ["stat-countries", s.countries]]) {
+                         ["stat-countries", s.countries],
+                         ["seg-all", s.venues], ["seg-film", s.film70]]) {
     $(id).textContent = fmt.format(n);
   }
 

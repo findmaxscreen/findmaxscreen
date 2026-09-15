@@ -286,18 +286,17 @@
          tagline under the question. -->
     <div class="stage">
       <div class="frame">
-        <p class="headline">The screens worth travelling for.</p>
         <!-- The joke only lands for the audience this site has - Nolan shot The
              Odyssey on 15/70, which is the format the whole page is about - and
-             it is a subtitle, so anyone who misses it has lost nothing. The
-             counts it used to share this frame with now stand beside it. -->
-        <p class="jokeline">Finding the best screen shouldn't be an Odyssey</p>
+             it is the headline, so anyone who misses it still reads a promise. -->
+        <p class="headline">The screens worth the Odyssey.</p>
         <!-- Only ever shown when venues.json fails to load; app.js unhides it
              with the reason. -->
         <p class="tagline" id="tagline" hidden></p>
       </div>
       <dl class="booth">
-        <div class="stat"><dt id="stat-film70">—</dt><dd>theatres still project 15/70&nbsp;mm film.</dd></div>
+        <!-- The figure is the shortcut: pressing it shows those theatres. -->
+        <div class="stat"><dt><button type="button" id="stat-film70" class="statlink" title="Show the theatres that run 15/70 mm film">—</button></dt><dd>theatres still project 15/70&nbsp;mm film.</dd></div>
         <div class="stat"><dt id="stat-venues">—</dt><dd>IMAX theatres in the list, across <span id="stat-countries">—</span> countries.</dd></div>
       </dl>
     </div>
@@ -356,6 +355,15 @@
          one bar, lifted on the same hard shadow as the tabs. The panel and
          the active-filter row stay outside it, on the page. -->
     <div class="strip">
+    <!-- The site's one filter, first on the strip and drawn as the choice it
+         is: everything, or the film houses. Still a switch underneath -
+         role and aria-checked are what app.js reads - so nothing else had
+         to learn a new control. -->
+    <button type="button" class="toggle segmented" id="film70"
+            role="switch" aria-checked="false" aria-label="Only theatres that run 15/70 mm film">
+      <span class="seg seg-all">All <b id="seg-all">—</b></span>
+      <span class="seg seg-film"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>15/70 film <b id="seg-film">—</b></span>
+    </button>
     <!-- The mascot, looking. Five frames on a sprite sheet: at rest it holds
          the glass still, and while a search is in flight app.js adds
          .searching and the glass swells and shrinks. Decorative; the input
@@ -381,11 +389,6 @@
          same question asked twice. This one narrows the list and names the
          country the My Country section reports on. -->
     <div id="quickfilters" class="quickfilters">
-      <button type="button" class="toggle big" id="film70"
-              role="switch" aria-checked="false">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>
-        <span>70&nbsp;mm film only</span>
-      </button>
       <label id="f-country" class="quickcountry">
         <span>Country</span>
         <select id="country"><option value="">Anywhere</option></select>

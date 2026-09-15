@@ -76,6 +76,7 @@
   --stage:        light-dark(#fff462, #163d2e);
   --stage-ink:    light-dark(#14382a, #fff462);
   --stage-muted:  light-dark(#3f5a4d, #cfe3d8);
+  --stage-text:   light-dark(#14382a, #e8ebf7);
   --stage-rule:   light-dark(#14382a40, #fff46240);
 
   /* The frame the title sits on, and the hard shadow that lifts it. */
@@ -235,6 +236,21 @@ a:hover { text-decoration-color: var(--ink); }
   color: var(--stage-ink);
 }
 .booth .stat:first-child dt { font-weight: 800; color: var(--accent); }
+.statlink {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 4px;
+  text-decoration-color: transparent;
+  text-underline-offset: 6px;
+  transition: text-decoration-color 0.15s;
+}
+.statlink:hover { text-decoration-color: currentColor; }
+.statlink:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .booth dd { margin: 0; font-size: 17px; color: var(--stage-muted); max-width: 30ch; }
 /* 15/70 runs three perforations to the frame; this rail keeps that rhythm at
    one hole per 24px. */
@@ -305,16 +321,6 @@ a:hover { text-decoration-color: var(--ink); }
      deliberately chosen the light theme on a dark system gets the halo on
      yellow, where it reads as a smudge. */
   :root:not([data-theme="light"]) .mark { filter: drop-shadow(0 0 1px #ffffffb0); }
-}
-
-/* Under the question, in the reading face's italic: the answer's tone of
-   voice before the answer itself. */
-.jokeline {
-  margin: 21px 0 0;
-  font-size: clamp(18px, 1.8vw, 23px);
-  font-style: italic;
-  max-width: 34ch;
-  color: var(--frame-ink);
 }
 
 /* The data-load error, and the privacy page's badge. */
@@ -428,7 +434,6 @@ a:hover { text-decoration-color: var(--ink); }
   margin: -22px 0 0;
   padding: 6px;
   background: var(--green);
-  box-shadow: 8px 8px 0 var(--ink);
 }
 .tabs button {
   display: inline-flex;
@@ -445,27 +450,29 @@ a:hover { text-decoration-color: var(--ink); }
 }
 .tabs button:hover { border-color: var(--on-green); }
 .tabs button.on {
-  color: var(--card-ink);
+  color: #ffffff;
   font-weight: 600;
-  background: var(--card);
-  border-color: var(--card);
+  background: var(--on-green);
+  border-color: var(--on-green);
 }
-.tabs button.on .icon { color: var(--accent); }
+.tabs button.on .icon { color: var(--yellow); }
 
 /* --------------------------------------------------------------- verdict */
 
 /* The answer to "can I see real film where I live?" comes before any list.
    A second white frame, smaller than the title's, lifted on the same shadow
    when the answer is yes and left flat when it is no. */
+/* The answer, written on the sheet: the same yellow as the masthead, flat,
+   with an ink edge - a note pinned under the poster rather than a second
+   poster. */
 .verdict {
   margin: 34px 0 0;
   padding: 18px 22px;
-  color: var(--card-ink);
-  background: var(--card);
-  border: 1px solid var(--ink);
+  color: var(--stage-text);
+  background: var(--stage);
+  border: 1px solid var(--stage-ink);
 }
-.verdict.yes { box-shadow: 8px 8px 0 var(--frame-shadow); }
-.verdict.no { border-color: var(--rule-firm); }
+.verdict.no { border-style: dashed; }
 
 .verdict p { margin: 0; max-width: 68ch; }
 .verdict-q {
@@ -474,7 +481,7 @@ a:hover { text-decoration-color: var(--ink); }
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted-flat);
+  color: var(--stage-muted);
 }
 .verdict-a {
   display: flex;
@@ -486,7 +493,7 @@ a:hover { text-decoration-color: var(--ink); }
   font-weight: 900;
   line-height: 1;
   text-transform: uppercase;
-  color: var(--ink-strong);
+  color: var(--stage-ink);
 }
 .verdict.yes .verdict-a .icon { color: var(--accent); }
 .verdict-a .icon { font-size: 30px; }
@@ -494,8 +501,10 @@ a:hover { text-decoration-color: var(--ink); }
   margin-top: 10px !important;
   font-size: 14px;
   font-style: italic;
-  color: var(--muted-flat);
+  color: var(--stage-muted);
 }
+.verdict .cta { border-top-color: var(--stage-rule); }
+.verdict .cta-q { color: var(--stage-muted); }
 
 /* -------------------------------------------------------------- controls */
 
@@ -516,11 +525,30 @@ a:hover { text-decoration-color: var(--ink); }
   background: var(--green);
   box-shadow: 8px 8px 0 var(--ink);
 }
+.strip .segmented { grid-column: 1 / -1; }
 .strip .quickfilters { grid-column: 1 / -1; }
-@media (min-width: 720px) {
-  .strip { grid-template-columns: auto 1fr auto; }
-  .strip .quickfilters { grid-column: auto; }
+@media (min-width: 900px) {
+  .strip { grid-template-columns: auto auto 1fr auto; }
+  .strip .segmented, .strip .quickfilters { grid-column: auto; }
 }
+/* Two segments, one lit: "All" in ink when the switch is off, "15/70 film"
+   in the film yellow when it is on. */
+.toggle.segmented { padding: 0; gap: 0; overflow: hidden; }
+.toggle.segmented::before, .toggle.segmented::after { content: none; }
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 13px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.seg b { font-weight: 600; font-variant-numeric: tabular-nums; opacity: 0.75; }
+.seg .icon { font-size: 15px; }
+.segmented[aria-checked="false"] .seg-all { background: var(--on-green); color: #ffffff; }
+.segmented[aria-checked="true"] .seg-film { background: var(--yellow); color: var(--on-yellow); }
+.segmented[aria-checked="false"] .seg-all b,
+.segmented[aria-checked="true"] .seg-film b { opacity: 1; }
 /* The mascot peers over the search box: a little taller than the strip's
    row, so its horn breaks the top edge. Five frames on a sheet 500% wide;
    at rest it shows the first. */
@@ -806,6 +834,8 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
 
 /* An applied filter is a yellow tag: yellow is what "on" looks like
    everywhere else on the page - the switch knob, the film badge. */
+/* Yellow is what "film" looks like on this page, so only the film chip
+   wears it; every other applied filter is an ink-outlined tag. */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -813,15 +843,17 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   padding: 5px 10px;
   font: inherit;
   font-size: 13.5px;
-  color: var(--on-yellow);
-  background: var(--yellow);
-  border: 1px solid var(--on-yellow);
+  color: var(--card-ink);
+  background: var(--card);
+  border: 1px solid var(--ink);
   border-radius: 2px;
   cursor: pointer;
 }
-.chip .icon { font-size: 13px; color: var(--on-yellow); opacity: 0.7; }
-.chip:hover { box-shadow: 3px 3px 0 var(--on-yellow); }
+.chip .icon { font-size: 13px; opacity: 0.7; }
+.chip:hover { box-shadow: 3px 3px 0 var(--accent); }
 .chip:hover .icon { opacity: 1; }
+.chip.film { color: var(--on-yellow); background: var(--yellow); border-color: var(--on-yellow); }
+.chip.film:hover { box-shadow: 3px 3px 0 var(--on-yellow); }
 
 button.ghost.small { font-size: 13.5px; padding: 5px 11px; }
 button.ghost.small .icon { font-size: 14px; }
@@ -930,12 +962,11 @@ button.ghost.small .icon { font-size: 14px; }
    green, the same mark the title frame runs down its edge. */
 .venue.film70 {
   position: relative;
-  padding-left: 18px;
 }
 .venue.film70::before {
   content: "";
   position: absolute;
-  left: 0;
+  left: -14px;
   top: 22px;
   width: 6px;
   height: 8px;
@@ -1138,6 +1169,7 @@ button.ghost.small .icon { font-size: 14px; }
   border-bottom: 1px solid var(--rule);
 }
 .empty p { margin: 0; }
+.empty .ways { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 18px; }
 /* Six frames on one sheet, 600% wide; background-position steps from the
    first frame to the last, which is the finished pose. */
 .empty .mascot {
@@ -1403,7 +1435,6 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
   .mast { padding-bottom: 18px; }
   .frame { padding: 20px 20px 18px 44px; box-shadow: 7px 7px 0 var(--frame-shadow); }
   .booth dt { font-size: 48px; }
-  .tabs { box-shadow: 6px 6px 0 var(--ink); }
   .verdict-a { font-size: 38px; }
   /* No room for a second column on a phone: fold the links underneath. */
   .venue { grid-template-columns: 1fr; }
