@@ -1409,28 +1409,15 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
     from { transform: translate(10px, 10px); }
     to   { transform: none; }
   }
-  .masthead h1 .mark {
-    animation:
-      unfurl 1.2s steps(6, jump-none) both,
-      settle 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 1.2s both;
-  }
+  .masthead h1 .mark { animation: unfurl 1.2s steps(6, jump-none) both; }
 
-  /* The empty state: the six frames of the unfurl, 200 ms apiece, then a
-     settle once the last one is up. jump-none lands exactly on each frame,
-     first and last included. */
-  .empty .mascot {
-    animation:
-      unfurl 1.2s steps(6, jump-none) both,
-      settle 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 1.2s both;
-  }
+  /* The empty state: the six frames of the unfurl, 200 ms apiece, and it
+     stays on the last one. jump-none lands exactly on each frame, first and
+     last included. */
+  .empty .mascot { animation: unfurl 1.2s steps(6, jump-none) both; }
   @keyframes unfurl {
     from { background-position: 0 0; }
     to   { background-position: 100% 0; }
-  }
-  @keyframes settle {
-    0%   { transform: scale(1.06, 0.9); }
-    55%  { transform: scale(0.97, 1.04); }
-    100% { transform: none; }
   }
 }}}}
 
