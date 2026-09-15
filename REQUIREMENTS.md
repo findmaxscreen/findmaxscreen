@@ -16,7 +16,7 @@ Data source: <https://imax.fandom.com/wiki/List_of_IMAX_venues>
    (Superseded by 12: now also automatic, daily.)
 5. **Tests** for the wiki parsing, and **validation after every update**.
 6. **Personality in the UI**, with badges for 70 mm and the other formats.
-7. **Newsprint theme** (as in Typora), light *and* dark, with monochrome icons.
+7. **A poster theme** — three flat colours, self-hosted type — light *and* dark, with monochrome icons.
 8. **A legend** explaining which IMAX formats are actually better.
 9. **Three sections** — everything; a "your country" view with the country
    guessed for the visitor; and a plain answer to whether 70 mm exists there.
@@ -51,11 +51,11 @@ country headings**; a **location pin** on each venue's place line.
 | 4 | Manual refresh | **done** — `./sync.py`, admin page |
 | 5 | Parser tests + post-update validation | **done** — 158 Python tests, `validate()` |
 | 6 | Badges and personality | **done** |
-| 7 | Newsprint theme, light + dark, monochrome icons | **done** — inline SVG sprite |
+| 7 | Poster theme, light + dark, monochrome icons | **done** — inline SVG sprite, `light-dark()` palette |
 | 8 | Format legend | **done** — the "IMAX types" tab |
 | 9 | Three sections | **done** — tab bar, `web/geo.js`; regrouped as All venues / Near me / IMAX types |
 | 10 | Refresh is admin-only | **done** — excluded from `dist/` by allow-list |
-| 11 | Publishable online, custom domain | **done** — `./export.py` → `dist/`, 49 KB gzipped |
+| 11 | Publishable online, custom domain | **done** — `./export.py` → `dist/`, 78 KB gzipped plus fonts |
 | 12 | Daily unattended deploy | **built, not yet live** — `.github/workflows/daily.yml` |
 | 13 | Pagination + reset filters | **done** — 25/page, filter chips |
 | 14 | Renamed, domain, header note | **done** |
@@ -170,8 +170,9 @@ to attack.
 ./export.py      # validate, write web/data/venues.json, build dist/
 ```
 
-`dist/` is six files, **49 KB gzipped in total**. It contains no server, no
-database and no admin page.
+`dist/` is a dozen static files: **78 KB gzipped** of page and data, plus
+106 KB of self-hosted fonts. It contains no server, no database and no admin
+page.
 
 ### Hosting: GitHub Pages, published daily by Actions
 
@@ -180,8 +181,8 @@ days the wiki revision has not moved and the run is one HTTP request.
 
 **Cloudflare Pages was considered and rejected.** Recorded so it is not
 re-argued: Cloudflare has ~300 edge cities against Fastly's smaller footprint,
-unlimited bandwidth, private-repo support and `_headers` control. But at 49 KB a
-visit, Pages' 100 GB/month soft cap is ~2 million visits; the repo is 516 KB
+unlimited bandwidth, private-repo support and `_headers` control. But at under
+200 KB a visit, Pages' 100 GB/month soft cap is ~500,000 visits; the repo is 516 KB
 against a 1 GB limit; the site is not commercial. The real difference is *tens
 of milliseconds* of TTFB, concentrated in India, South-East Asia, South America
 and Africa. Against that, GitHub Pages needs **zero secrets and one account**,
@@ -809,17 +810,40 @@ space as `+`, which mail clients render literally in a subject line.
 
 ## Look and feel
 
-- **Newsprint.** The palette and typography follow Typora's Newsprint theme:
-  warm paper (`#f3f2ee`), near-black serif text, oxblood accents, and hairline
-  rules instead of boxed cards. A cinema listing is a listings page, so it reads
-  like one. Fonts are a system serif stack (Iowan Old Style → Palatino → PT
-  Serif → Georgia); nothing is downloaded.
+- **Poster, not newspaper.** Three flat colours taken from a Takahashi Yuki
+  event poster — yellow `#fff462`, green `#3ab483`, periwinkle `#afc0e3` — with
+  one dark green ink (`#14382a`) doing all the reading. The masthead is the
+  yellow sheet; the title sits on a white frame with sprocket holes down its
+  edge and a hard green shadow; the tabs run along the seam as a green strip;
+  the list is set on periwinkle and the footer on green. Anything switched on,
+  and the one badge meant to stop you scrolling, is yellow. Hairline rules
+  still separate entries — a listings page reads like one.
+- **Type is self-hosted.** Big Shoulders Display (variable, 35 KB) for anything
+  that shouts and Newsreader (three fixed cuts, 71 KB) for everything you read,
+  in `web/fonts/`, named in the export allow-list. The CSP only admits fonts
+  from this origin, so linking Google Fonts would fail silently; the variable
+  Newsreader file was rejected at 280 KB for the two files.
 - **One palette, two themes.** Every colour is declared once with CSS
   `light-dark()`, and the theme button flips `color-scheme` on `:root` — so
   there is no second copy of the palette to keep in sync. The button cycles
   Auto → Light → Dark and remembers the choice in `localStorage`; Auto follows
-  the OS. The dark palette is a warm "evening edition" charcoal, not a grey
-  inversion.
+  the OS. The dark palette keeps the three poster colours and swaps the
+  grounds under them: a deep green sheet with a yellow wordmark, a near-black
+  list. It is not a grey inversion.
+- **The mascot** is a haetae, the Seoul guardian creature, drawn flat in the
+  three poster colours, with a tail that is a curl of film. Three sprite
+  sheets ship as small transparent PNGs in `web/`, each stepped through by
+  CSS: beside the wordmark and in the empty-results state it arrives rolled
+  up like a ball with its film tail wrapped round the outside, rolls in on a
+  transform, and unrolls through drawn frames into the finished pose
+  (`mascot-hello.png`, seven frames; `mascot-unfurl.png`, five); on
+  the search strip it holds a magnifying glass that swells and shrinks on a
+  four-frame loop while a search is in flight (`mascot-searching.png`).
+  Frames are keyed out and cropped to one shared bounding box so they stay
+  registered. The dark theme gives each a hairline of light so the ink
+  outlines do not sink into the ground. Rendered by the Codex Image
+  Generation skill from the finished pose; the full-size originals are not
+  in the repo. The favicon and touch icon are the same head.
 - **Icons are inline SVG**, drawn in `index.html` as a `<symbol>` sprite and
   referenced with `<use>`. Monochrome, `currentColor`, so one drawing serves
   both themes and there is no icon font or CDN. Sprite entries must be

@@ -30,6 +30,8 @@
      and reads better than a faithful one nobody can resolve. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a03b3b%27 stroke-width=%271.7%27 stroke-linecap=%27round%27%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%278.6%27/%3E%3Cpath d=%27M12 12h.01%27/%3E%3Ccircle cx=%2712%27 cy=%277%27 r=%271.5%27/%3E%3Ccircle cx=%2712%27 cy=%2717%27 r=%271.5%27/%3E%3Ccircle cx=%277%27 cy=%2712%27 r=%271.5%27/%3E%3Ccircle cx=%2717%27 cy=%2712%27 r=%271.5%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
+<link rel="preload" href="fonts/BigShouldersDisplay.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Newsreader-400.woff2" as="font" type="font/woff2" crossorigin>
 <script src="theme.js"></script>
 </head>
 <body>
@@ -59,12 +61,16 @@
 
 <header class="masthead">
   <div class="wrap">
-    <h1><a href="./" title="Back to the venue list"
-      ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reel"></use></svg>Find Max Screen</a></h1>
-    <p class="tagline">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg>
-      Privacy
-    </p>
+    <div class="mast">
+      <h1><a href="./" title="Back to the venue list"
+        ><span class="mark" aria-hidden="true"></span>Find <b>Max</b> Screen</a></h1>
+    </div>
+    <div class="frame slim">
+      <p class="tagline">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"></use></svg>
+        Privacy
+      </p>
+    </div>
   </div>
 </header>
 

@@ -25,8 +25,8 @@ imax.fandom.com ──MediaWiki API──> sync.py ──> theatres.sqlite3 ─�
                                      (OpenStreetMap)
 ```
 
-The published site is **static**: six files, **49 KB gzipped**, no server, no
-database, no API. The whole dataset ships in one JSON and every search, filter
+The published site is **static**: about **78 KB gzipped** of page and data,
+plus 106 KB of self-hosted type; no server, no database, no API. The whole dataset ships in one JSON and every search, filter
 and sort happens in the browser. There is nothing to attack and nothing to keep
 running.
 

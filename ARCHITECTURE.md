@@ -56,7 +56,8 @@ re-scans its own output and raises if anything matching `admin`, `sync.py`,
 
 ### Why static
 
-The published site is seven files, **49 KB gzipped**. The entire dataset ships in
+The published site is a dozen static files, **78 KB gzipped** of page and data
+plus 106 KB of self-hosted fonts. The entire dataset ships in
 one JSON and every search, filter, sort and page happens in the browser. For 476
 rows that is both simpler and faster than any backend, and it has three
 consequences worth stating plainly:
@@ -159,7 +160,8 @@ city centroid would.
   to a stored imax.com deep link is closed; the search link is built at click
   time from data we own.
 - **No third-party analytics, fonts, or scripts.** Icons are an inline SVG
-  sprite; type is a system serif stack.
+  sprite; the two typefaces are served from this origin, which the CSP's
+  `font-src 'self'` enforces.
 
 ---
 

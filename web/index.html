@@ -14,7 +14,7 @@
      two are the same origin and the entry is redundant; on localhost it is the
      difference between a clean console and a "blocked" warning that would
      eventually train someone to ignore a real one. It grants no third party
-     anything. data: is there for the inline SVG favicon.
+     anything. data: is kept for any inline SVG the page may draw.
 
      connect-src stays 'self' because venues.json is the only fetch the page
      makes and there is no backend to talk to. form-action 'none' is honest -
@@ -65,7 +65,7 @@
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Find Max Screen: only 58 of 476 IMAX theatres still run 15/70 mm film.">
+<meta property="og:image:alt" content="Find Max Screen: which IMAX still runs real film? The site's mascot, a smiling haetae, beside the question.">
 <meta name="twitter:card" content="summary_large_image">
 
 <!-- iMessage falls back to this when it declines the og:image, and iOS uses it
@@ -113,18 +113,23 @@
   ]
 }
 </script>
-<!-- Deliberately the plain reel, without the film that the masthead symbol
-     carries. This renders at 16px in a browser tab, where the draped strip
-     turns into two grey smudges under a circle - the exact failure the icon
-     set keeps running into. A simplified mark at tab size is normal practice
-     and reads better than a faithful one nobody can resolve. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a03b3b%27 stroke-width=%271.7%27 stroke-linecap=%27round%27%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%278.6%27/%3E%3Cpath d=%27M12 12h.01%27/%3E%3Ccircle cx=%2712%27 cy=%277%27 r=%271.5%27/%3E%3Ccircle cx=%2712%27 cy=%2717%27 r=%271.5%27/%3E%3Ccircle cx=%277%27 cy=%2712%27 r=%271.5%27/%3E%3Ccircle cx=%2717%27 cy=%2712%27 r=%271.5%27/%3E%3C/svg%3E">
+<!-- The mascot's head, as a small PNG: a bitmap because the character is one,
+     and 64px because a tab renders it at 16 or 32 and a 2x source stays
+     crisp. Transparent, so it sits on a light or dark tab strip alike. -->
+<link rel="icon" href="favicon.png" type="image/png" sizes="64x64">
 <link rel="stylesheet" href="style.css">
+<!-- The two faces the masthead is set in, requested with the HTML rather
+     than after the stylesheet has been parsed. After the stylesheet link,
+     so the CSS keeps first claim on a slow connection; and the stylesheet
+     declares metric-matched fallbacks, so the swap when these arrive does
+     not move anything. 57 KB between them. -->
+<link rel="preload" href="fonts/BigShouldersDisplay.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Newsreader-400.woff2" as="font" type="font/woff2" crossorigin>
 <!-- No preload for data/venues.json, deliberately. Preloading it at high
      priority measurably HURT mobile: on a throttled connection the 200 KB
-     fetch competes with style.css, and LCP (the masthead paragraph, which
-     needs only HTML+CSS) went 1.2s -> 2.4s. The data is not what the first
-     paint is waiting for. Only the small modules are preloaded. -->
+     fetch competes with style.css, and LCP (the masthead, which needs only
+     HTML+CSS) went 1.2s -> 2.4s. The data is not what the first paint is
+     waiting for. Only the small modules are preloaded. -->
 <link rel="modulepreload" href="query.js">
 <link rel="modulepreload" href="geo.js">
 </head>
@@ -267,27 +272,41 @@
 
 <header class="masthead">
   <div class="wrap">
-    <button type="button" id="theme" class="themetoggle" title="Switch theme">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
-      <span id="thememode">Auto</span>
-    </button>
-    <!-- A real link to the site root, so middle-click and "open in new tab"
-         behave. app.js intercepts the plain left-click and clears everything in
-         place instead, which is the same destination without the reload. -->
-    <h1><a href="./" id="home" title="Back to the start — clears every filter"
-      ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reel"></use></svg>Find Max Screen</a></h1>
+    <!-- The top row: wordmark on the left, the joke and the theme switch on
+         the right. The wordmark is a real link to the site root, so middle-click
+         and "open in new tab" behave; app.js intercepts the plain left-click and
+         clears everything in place instead, which is the same destination
+         without the reload. -->
+    <div class="mast">
+      <h1><a href="./" id="home" title="Back to the start — clears every filter"
+        ><span class="mark" aria-hidden="true"></span>Find <b>Max</b> Screen</a></h1>
+      <button type="button" id="theme" class="themetoggle" title="Switch theme">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
+        <span id="thememode">Auto</span>
+      </button>
+    </div>
 
-    <!-- Static, and above the tagline rather than below it: this one belongs to
-         the wordmark, while the line under it is a live count read from
-         venues.json. Two italic greys stacked would read as one paragraph, so
-         this sits tight to the title and the tagline takes the gap.
-
-         The joke only lands for the audience this site has - Nolan shot The
-         Odyssey on 15/70, which is the format the whole page is about - and it
-         is a subtitle, so anyone who misses it has lost nothing. -->
-    <p class="jokeline">Finding the best screen shouldn't be an Odyssey</p>
-
-    <p class="tagline" id="tagline">Loading…</p>
+    <!-- The stage: the question on a white frame with sprocket holes down its
+         edge - the one picture on a page about film - and the two numbers
+         that answer it beside. The frame is presentational, so a div with no
+         role; the numbers are filled from venues.json by app.js, like the
+         tagline under the question. -->
+    <div class="stage">
+      <div class="frame">
+        <!-- The joke only lands for the audience this site has - Nolan shot The
+             Odyssey on 15/70, which is the format the whole page is about - and
+             it is the headline, so anyone who misses it still reads a promise. -->
+        <p class="headline">The screens worth the Odyssey.</p>
+        <!-- Only ever shown when venues.json fails to load; app.js unhides it
+             with the reason. -->
+        <p class="tagline" id="tagline" hidden></p>
+      </div>
+      <dl class="booth">
+        <!-- The figure is the shortcut: pressing it shows those theatres. -->
+        <div class="stat"><dt><button type="button" id="stat-film70" class="statlink" title="Show the theatres that run 15/70 mm film">—</button></dt><dd>theatres still project 15/70&nbsp;mm film.</dd></div>
+        <div class="stat"><dt id="stat-venues">—</dt><dd>IMAX theatres in the list, across <span id="stat-countries">—</span> countries.</dd></div>
+      </dl>
+    </div>
 
     <!-- Above "Why this exists", not below it: this is the claim a visitor
          arriving from a link aggregator checks first, and it is the one thing
@@ -339,6 +358,24 @@
   <!-- No onsubmit attribute: the Content-Security-Policy above forbids inline
        handlers, so the Enter-key no-op is bound in wire() instead. -->
   <form id="controls" autocomplete="off">
+    <!-- The green strip: search, the 70 mm switch and the country picker in
+         one bar, lifted on the same hard shadow as the tabs. The panel and
+         the active-filter row stay outside it, on the page. -->
+    <div class="strip">
+    <!-- The site's one filter, first on the strip and drawn as the choice it
+         is: everything, or the film houses. Still a switch underneath -
+         role and aria-checked are what app.js reads - so nothing else had
+         to learn a new control. -->
+    <button type="button" class="toggle segmented" id="film70"
+            role="switch" aria-checked="false" aria-label="Only theatres that run 15/70 mm film">
+      <span class="seg seg-all">All <b id="seg-all">—</b></span>
+      <span class="seg seg-film"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>15/70 film <b id="seg-film">—</b></span>
+    </button>
+    <!-- The mascot, looking. Five frames on a sprite sheet: at rest it holds
+         the glass still, and while a search is in flight app.js adds
+         .searching and the glass swells and shrinks. Decorative; the input
+         beside it is labelled. -->
+    <div class="mascot searchmascot" aria-hidden="true"></div>
     <div class="searchrow">
       <svg class="icon searchicon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"></use></svg>
       <input type="search" id="q" placeholder="Search a city, country, or theatre…  (press /)"
@@ -359,15 +396,11 @@
          same question asked twice. This one narrows the list and names the
          country the My Country section reports on. -->
     <div id="quickfilters" class="quickfilters">
-      <button type="button" class="toggle big" id="film70"
-              role="switch" aria-checked="false">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"></use></svg>
-        <span>70&nbsp;mm film only</span>
-      </button>
       <label id="f-country" class="quickcountry">
         <span>Country</span>
         <select id="country"><option value="">Anywhere</option></select>
       </label>
+    </div>
     </div>
 
     <!-- Collapsed by default. On a phone the toggles and selects together push
@@ -487,18 +520,20 @@
 
     <p class="aside">
       <span class="badge dome"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dome"></use></svg>Dome</span>
-      Domes (also sold as OMNIMAX) sit outside the ranking — a tilted
+      <!-- The text is one span because the paragraph is a flex row: left
+           loose, every inline child becomes its own column. -->
+      <span>Domes (also sold as OMNIMAX) sit outside the ranking — a tilted
       hemispherical screen that wraps past the edge of your vision. Different
       rather than better, and mostly science museums showing documentaries
-      rather than features.
+      rather than features.</span>
     </p>
 
     <p class="aside">
       <span class="badge tall"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tall"></use></svg>1.43:1</span>
-      Worth repeating on its own: the aspect ratio can matter as much as the
+      <span>Worth repeating on its own: the aspect ratio can matter as much as the
       projector. A 1.43:1 screen shows the full-height IMAX frame; a 1.90:1
       screen shows a wider, shorter crop of it. Filter by
-      <strong>Screen shape → 1.43:1</strong> to see only the tall ones.
+      <strong>Screen shape → 1.43:1</strong> to see only the tall ones.</span>
     </p>
   </section>
 

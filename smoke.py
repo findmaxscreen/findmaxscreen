@@ -37,6 +37,8 @@ from contextlib import contextmanager
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from html import escape
+from urllib.parse import quote
 from urllib.request import urlopen
 
 HERE = Path(__file__).resolve().parent
@@ -267,6 +269,111 @@ def check_located(chrome: str, base: str, tag: str = "located") -> list[str]:
     return failures
 
 
+def check_redesign(chrome: str, base: str, data: dict) -> list[str]:
+    """The poster redesign: everything the page says about the data must be
+    the data, and every new control must be there and wired.
+
+    Numbers are read from venues.json rather than hard-coded, so the checks
+    stay true as the wiki moves - and so they catch the one failure the
+    redesign could introduce: a page that draws its own figures rather than
+    the dataset's."""
+    failures: list[str] = []
+    stats = data["stats"]
+    live = [v for v in data["venues"] if v["removed_at"] is None]
+    film = [v for v in live if v["has_70mm"] == 1]
+
+    def assert_(name: str, condition: bool, detail: str = ""):
+        if not check(name, condition, detail):
+            failures.append(name)
+
+    def text(pattern: str, dom: str) -> str:
+        m = re.search(pattern, dom)
+        return m.group(1).strip() if m else ""
+
+    # --- the masthead: live figures, and the film figure is a control ------ #
+    dom, stderr = render(chrome, base + "/?country=any")
+    assert_("redesign: no console errors", not console_errors(stderr))
+    assert_("headline is the poster line", "The screens worth the Odyssey." in dom)
+    assert_("no dome figure in the masthead", 'id="stat-dome"' not in dom)
+    assert_("film figure is the dataset's",
+            text(r'id="stat-film70"[^>]*>([^<]*)<', dom) == f"{stats['film70']:,}",
+            f"shows {text(r'id=\"stat-film70\"[^>]*>([^<]*)<', dom)!r}")
+    assert_("film figure is a button", re.search(r'<button[^>]*id="stat-film70"', dom) is not None)
+    assert_("venue figure is the dataset's",
+            text(r'id="stat-venues"[^>]*>([^<]*)<', dom) == f"{stats['venues']:,}")
+    assert_("country figure is the dataset's",
+            text(r'id="stat-countries"[^>]*>([^<]*)<', dom) == f"{stats['countries']:,}")
+
+    # --- the strip: a two-way switch that counts, and a mascot ------------- #
+    assert_("film filter is a switch with two segments",
+            re.search(r'<button[^>]*id="film70"[^>]*role="switch"', dom) is not None
+            and 'class="seg seg-all"' in dom and 'class="seg seg-film"' in dom)
+    assert_("segments carry the dataset's counts",
+            text(r'id="seg-all"[^>]*>([^<]*)<', dom) == f"{stats['venues']:,}"
+            and text(r'id="seg-film"[^>]*>([^<]*)<', dom) == f"{stats['film70']:,}")
+    assert_("mascot beside the wordmark", 'class="mark"' in dom)
+    assert_("mascot on the search strip", 'class="mascot searchmascot"' in dom)
+
+    # --- the film list: all of it, on one page ---------------------------- #
+    film_dom, _ = render(chrome, base + "/?film70=1&country=any")
+    shown = len(re.findall(r'<article class="venue film70', film_dom))
+    assert_("film filter shows every film house on one page",
+            shown == len(film), f"showed {shown}, data has {len(film)}")
+    assert_("no pager on the film list", 'class="pageinfo"' not in film_dom)
+    assert_("only the film chip is yellow",
+            'class="chip film"' in film_dom)
+
+    # --- the verdict names the theatre when there are few ------------------ #
+    by_country: dict[str, list] = {}
+    for v in film:
+        by_country.setdefault(v["country"], []).append(v)
+    few = sorted((c for c, vs in by_country.items() if 1 <= len(vs) <= 3),
+                 key=lambda c: (len(by_country[c]), c))
+    if few:
+        country = few[0]
+        v_dom, _ = render(chrome, f"{base}/?country={quote(country)}")
+        verdict = text(r'<div class="verdict[^"]*">(.*?)<div class="cta"', v_dom) \
+            or text(r'<div class="verdict[^"]*">(.*?)</div>', v_dom)
+        missing = [v["name"] for v in by_country[country]
+                   if escape(v["name"], quote=False) not in verdict]
+        assert_(f"verdict names the film house(s) in {country}", not missing,
+                f"not named: {missing}")
+    else:
+        check("verdict names the film house(s)", True)
+
+    # --- rows say the city under a heading that says the rest ------------- #
+    wheres = [w.strip() for w in re.findall(r'class="where">.*?</svg>([^<]*)<', dom)]
+    assert_("grouped rows show only the city",
+            wheres and not any(", " in w for w in wheres),
+            f"first rows: {wheres[:3]}")
+    named, _ = render(chrome, base + "/?country=any&sort=name")
+    full = [w.strip() for w in re.findall(r'class="where">.*?</svg>([^<]*)<', named)]
+    assert_("ungrouped rows show the whole place",
+            full and any(", " in w for w in full), f"first rows: {full[:3]}")
+
+    # --- chips and the empty state ---------------------------------------- #
+    mixed, _ = render(chrome, base + "/?film70=1&country=any&q=imax")
+    assert_("a search chip is not yellow",
+            re.search(r'<button class="chip" ', mixed) is not None
+            and 'class="chip film"' in mixed)
+    empty, _ = render(chrome, base + "/?q=zzzzqq&country=any")
+    assert_("empty state says so plainly", "Nothing matches." in empty)
+    assert_("empty state offers a way out",
+            "Clear the filters" in empty and "Show every film theatre" in empty)
+    assert_("empty state shows the mascot", 'class="mascot unfurl"' in empty)
+
+    # --- the assets the stylesheet names actually ship --------------------- #
+    for asset in ("mascot-hello.png", "mascot-unfurl.png", "mascot-searching.png",
+                  "favicon.png", "apple-touch-icon.png", "og.png"):
+        try:
+            with urlopen(f"{base}/{asset}", timeout=10) as resp:
+                ok = resp.status == 200 and resp.read(8)[:4] == b"\x89PNG"
+        except Exception:
+            ok = False
+        assert_(f"{asset} ships", ok)
+    return failures
+
+
 def run_checks(chrome: str, base: str, expected_venues: int) -> list[str]:
     failures: list[str] = []
 
@@ -405,6 +512,7 @@ def main(argv: list[str] | None = None) -> int:
     started = time.monotonic()
     with serving(args.dist) as base:
         failures = run_checks(chrome, base, expected)
+        failures += check_redesign(chrome, base, data)
 
     # A second server, over a copy of the build with the geolocation stubbed.
     # Separate because the stub must not be in the directory --keep-open hands
@@ -435,7 +543,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # A headless Chrome that crashed will not exit by itself, and this runs on
     # a laptop; say so rather than leaving hundreds of MB behind silently.
-    leftover = subprocess.run(["pgrep", "-f", "headless"],
+    # Match the browser, not any process whose arguments mention the word:
+    # an agent run with "headless" in its prompt used to trip this.
+    leftover = subprocess.run(["pgrep", "-f", "Google Chrome.*--headless"],
                               capture_output=True, text=True).stdout.strip()
     if leftover:
         print(f"warning: headless browser processes survived: {leftover}")

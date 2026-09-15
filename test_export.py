@@ -10,6 +10,7 @@ site is published.
 """
 
 import json
+import re
 import sqlite3
 import tempfile
 import unittest
@@ -67,6 +68,51 @@ class ExportCase(unittest.TestCase):
         self.conn.row_factory = sqlite3.Row
         self.addCleanup(self.conn.close)
         self.payload = export.build_payload(self.conn)
+
+
+class TestUiIndependence(ExportCase):
+    """The redesign changed every file in web/ except the data. These pin the
+    boundary: the data payload is built from the database alone, and the
+    bundle copies data and UI verbatim, so no styling change can alter a
+    number the page shows."""
+
+    def test_payload_does_not_read_the_ui_files(self):
+        original = export.WEB_DIR
+        with tempfile.TemporaryDirectory() as tmp:
+            # A web/ with nothing in it. If build_payload reached into it for
+            # anything, this would differ or raise.
+            export.WEB_DIR = Path(tmp)
+            try:
+                again = export.build_payload(self.conn)
+            finally:
+                export.WEB_DIR = original
+        self.assertEqual(json.dumps(self.payload, sort_keys=True),
+                         json.dumps(again, sort_keys=True))
+
+    def test_payload_is_deterministic(self):
+        self.assertEqual(json.dumps(self.payload, sort_keys=True),
+                         json.dumps(export.build_payload(self.conn), sort_keys=True))
+
+    def test_bundle_copies_data_and_ui_byte_for_byte(self):
+        if not (export.WEB_DIR / "data" / "venues.json").is_file():
+            self.skipTest("run ./export.py first")
+        dist = self.root / "dist"
+        export.build_dist(dist)
+        for name in list(export.PUBLIC_FILES) + list(export.PUBLIC_DATA):
+            with self.subTest(file=name):
+                self.assertEqual((dist / name).read_bytes(),
+                                 (export.WEB_DIR / name).read_bytes())
+
+    def test_ui_files_carry_no_venue_figures(self):
+        """The counts the page shows come from venues.json at runtime. A
+        number typed into the UI would go stale the day the wiki moved, so
+        none of the live-count ids may ship with digits already in them."""
+        html = (export.WEB_DIR / "index.html").read_text()
+        for id_ in ("stat-film70", "stat-venues", "stat-countries", "seg-all", "seg-film"):
+            m = re.search(rf'id="{id_}"[^>]*>([^<]*)<', html)
+            self.assertIsNotNone(m, f"{id_} missing from index.html")
+            self.assertFalse(re.search(r"\d", m.group(1)),
+                             f"{id_} ships with a number typed in: {m.group(1)!r}")
 
 
 class TestPayload(ExportCase):
