@@ -204,13 +204,13 @@ a:hover { text-decoration-color: var(--ink); }
 .headline {
   margin: 0;
   font-family: var(--display);
-  font-size: clamp(36px, 4.6vw, 60px);
+  font-size: clamp(34px, 4.3vw, 56px);
   font-weight: 900;
   line-height: 0.95;
   letter-spacing: 0.005em;
   text-transform: uppercase;
   text-wrap: balance;
-  max-width: 14ch;
+  max-width: 17ch;
   color: var(--ink-strong);
 }
 
@@ -228,7 +228,7 @@ a:hover { text-decoration-color: var(--ink); }
 .booth .stat:first-child { border-top: 0; padding-top: 0; }
 .booth dt {
   font-family: var(--display);
-  font-size: 64px;
+  font-size: 52px;
   font-weight: 300;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -1433,8 +1433,11 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
 @media (max-width: 620px) {
   .masthead { padding-top: 16px; }
   .mast { padding-bottom: 18px; }
-  .frame { padding: 20px 20px 18px 44px; box-shadow: 7px 7px 0 var(--frame-shadow); }
-  .booth dt { font-size: 48px; }
+  .frame { padding: 20px 16px 18px 44px; box-shadow: 7px 7px 0 var(--frame-shadow); }
+  /* Balancing would rather three even lines than two; on a phone two is
+     the point, and 28px is what "The screens worth" needs to fit one. */
+  .headline { font-size: 28px; max-width: none; text-wrap: wrap; }
+  .booth dt { font-size: 40px; }
   .verdict-a { font-size: 38px; }
   /* No room for a second column on a phone: fold the links underneath. */
   .venue { grid-template-columns: 1fr; }
