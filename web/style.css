@@ -1,36 +1,97 @@
 /* IMAX venue finder - one stylesheet, no build step, no external assets.
  *
- * The look is borrowed from Typora's Newsprint theme: warm paper, black-ink
- * serif text, oxblood accents, and rules instead of boxes.  A cinema listing is
- * a listings page, so it may as well read like one.
+ * The look is a poster, not a newspaper: three flat colours borrowed from a
+ * Takahashi Yuki event poster - a screen-print yellow, a leaf green and a
+ * periwinkle - with one dark green ink doing all the reading. The masthead is
+ * the yellow sheet, the title sits on a white frame with sprocket holes down
+ * its edge (the one motif, because the site exists to find film), the tabs run
+ * along the seam as a green strip, and the list below is set on periwinkle.
  *
  * Both palettes live in one place via light-dark(): every colour names its
- * paper value first and its evening-edition value second.  The theme button
- * flips `color-scheme` on :root, which is what light-dark() keys off, so there
- * is no second copy of the palette to keep in sync.
+ * daylight value first and its evening value second.  The theme button flips
+ * `color-scheme` on :root, which is what light-dark() keys off, so there is no
+ * second copy of the palette to keep in sync.
+ *
+ * Type is self-hosted, because the Content-Security-Policy only lets fonts
+ * come from this origin: Big Shoulders Display for anything that shouts, and
+ * Newsreader - three fixed cuts, not the variable file, which was six times the
+ * size - for everything you read.
  */
+
+@font-face {
+  font-family: "Big Shoulders Display";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url(fonts/BigShouldersDisplay.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/Newsreader-400.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/Newsreader-600.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/Newsreader-400i.woff2) format("woff2");
+}
 
 :root {
   color-scheme: light dark;
 
-  --paper:      light-dark(#f3f2ee, #171613);
-  --raised:     light-dark(#fbfaf7, #1e1d19);
-  --ink:        light-dark(#1a1a18, #e8e4da);
-  --ink-strong: light-dark(#000000, #f6f3ec);
-  --muted:      light-dark(#6d6a63, #98928699);
-  --muted-flat: light-dark(#6d6a63, #989286);
-  --rule:       light-dark(#dcd9d1, #322f29);
-  --rule-firm:  light-dark(#c3bfb4, #45413a);
+  /* The three poster colours. They do not change with the theme - the evening
+     edition swaps the grounds they sit on, not the colours themselves. */
+  --yellow: #fff462;
+  --green:  #3ab483;
+  --peri:   #afc0e3;
 
-  /* Oxblood: Newsprint's link colour, and the obvious home for the one badge
-     that is meant to stop you scrolling. */
-  --accent:     light-dark(#a03b3b, #e08a7e);
-  --accent-dim: light-dark(#a03b3b26, #e08a7e26);
-  --hot:        light-dark(#98302f, #e4796a);
-  --hot-bg:     light-dark(#a03b3b14, #e0796c1a);
+  /* Text that sits on a poster colour, whichever theme is on. */
+  --on-yellow: #14382a;
+  --on-green:  #0f2a20;
 
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
-           "PT Serif", Georgia, "Times New Roman", serif;
+  --paper:      light-dark(#afc0e3, #10201a);
+  --raised:     light-dark(#ffffff, #182b23);
+  --ink:        light-dark(#14382a, #dfe8e3);
+  --ink-strong: light-dark(#0f2a20, #ffffff);
+  --muted:      light-dark(#3f5a4d, #9fb3a9);
+  --muted-flat: light-dark(#3f5a4d, #9fb3a9);
+  --rule:       light-dark(#14382a47, #dfe8e329);
+  --rule-firm:  light-dark(#14382a8c, #dfe8e359);
+
+  /* The masthead sheet and what is written straight onto it. */
+  --stage:        light-dark(#fff462, #163d2e);
+  --stage-ink:    light-dark(#14382a, #fff462);
+  --stage-muted:  light-dark(#3f5a4d, #cfe3d8);
+  --stage-rule:   light-dark(#14382a40, #fff46240);
+
+  /* The frame the title sits on, and the hard shadow that lifts it. */
+  --frame:        light-dark(#ffffff, #0f1f18);
+  --frame-ink:    light-dark(#14382a, #dfe8e3);
+  --frame-shadow: light-dark(#3ab483, #fff462);
+
+  /* Green is the working accent: icons, rings, rules that mean something. */
+  --accent:     #3ab483;
+  --accent-dim: #3ab48359;
+  /* "Hot" is the one badge meant to stop you scrolling, and anything switched
+     on: yellow, with the dark ink on it. */
+  --hot:        var(--on-yellow);
+  --hot-bg:     var(--yellow);
+
+  --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Palatino,
+           "Book Antiqua", Georgia, serif;
+  --display: "Big Shoulders Display", "Arial Narrow", "Helvetica Neue Condensed",
+             Impact, sans-serif;
 
   --measure: 1080px;
 }
@@ -53,16 +114,24 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--serif);
-  font-size: 16px;
-  line-height: 1.55;
+  font-size: 17px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 24px; }
 
-a { color: var(--accent); text-underline-offset: 2px; }
-a:hover { text-decoration-thickness: 2px; }
+/* Links keep the ink and take the green as an underline: green text on
+   periwinkle does not reach a readable contrast, and a coloured rule under
+   ink does the same job without asking the reader to squint. */
+a {
+  color: var(--ink);
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+a:hover { text-decoration-color: var(--ink); }
 
 /* Icons are monochrome line art; they take their colour from the text. */
 .icon {
@@ -77,22 +146,60 @@ a:hover { text-decoration-thickness: 2px; }
   vertical-align: -0.14em;
 }
 
+/* Anything set in the display face is set the same way: condensed capitals. */
+.display {
+  font-family: var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
 /* -------------------------------------------------------------- masthead */
 
+/* The yellow sheet. Full-bleed, with the centring left to the inner .wrap. */
 .masthead {
-  padding: 30px 0 20px;
-  border-bottom: 3px double var(--rule-firm);
+  padding: 26px 0 34px;
+  background: var(--stage);
+  color: var(--stage-ink);
 }
 .masthead .wrap { position: relative; }
+
+/* The title block: white, with sprocket holes down its left edge and a hard
+   green shadow lifting it off the sheet. Content-sized rather than a fixed
+   ratio - the tagline is a live count and gets longer in some countries. */
+.frame {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 26px 34px 24px 56px;
+  color: var(--frame-ink);
+  background: var(--frame);
+  box-shadow: 10px 10px 0 var(--frame-shadow);
+}
+/* 15/70 runs three perforations to the frame; this rail keeps that rhythm at
+   one hole per 24px. */
+.frame::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 26px;
+  border-right: 1px solid var(--frame-shadow);
+  background: radial-gradient(4px 5px at 13px 50%, var(--frame-shadow) 98%, transparent 100%)
+              0 0 / 26px 24px repeat-y;
+}
+
 .masthead h1 {
   display: flex;
   align-items: center;
   gap: 11px;
   margin: 0;
-  font-size: 34px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--ink-strong);
+  font-family: var(--display);
+  font-size: 56px;
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  color: inherit;
 }
 /* The title is a link home, and looks like nothing of the sort in every state:
    no accent colour, no underline, not even on hover. A masthead is already
@@ -108,7 +215,7 @@ a:hover { text-decoration-thickness: 2px; }
 .masthead h1 a:active {
   display: inline-flex;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
   color: inherit;
   text-decoration: none;
 }
@@ -117,13 +224,12 @@ a:hover { text-decoration-thickness: 2px; }
   outline-offset: 4px;
   border-radius: 2px;
 }
-/* Larger than the title rather than smaller, which looks wrong written down and
-   is right on the page: the reel is only about half the width of its own 24-unit
-   box - the rest is the film running off it - so a glyph sized to match the caps
-   renders a reel half their height. 1.18em puts the reel itself at roughly the
-   x-height of the wordmark beside it. */
+/* Sized to the cap height of the wordmark rather than to the em: the reel is
+   only about half the width of its own 24-unit box - the rest is the film
+   running off it - so a glyph sized to the caps renders a reel half their
+   height. */
 .masthead h1 .icon {
-  font-size: 1.18em;
+  font-size: 0.86em;
   stroke-width: 1.5;
   color: var(--accent);
 }
@@ -134,11 +240,7 @@ a:hover { text-decoration-thickness: 2px; }
 
    Pale strokes on a dark ground bloom. The reel's four holes and its hub sit
    close together, and at 1.5 they thicken into a cluster with the gaps closed;
-   1.15 makes the dark version read at the weight the light one already has.
-
-   The accent colour is deliberately not touched. A deeper pink here would read
-   better in isolation and would then disagree with every link, badge and tab on
-   the page, which is a worse trade than a thinner line. */
+   1.15 makes the dark version read at the weight the light one already has. */
 :root[data-theme="dark"] .masthead h1 .icon { stroke-width: 1.15; }
 
 @media (prefers-color-scheme: dark) {
@@ -148,60 +250,46 @@ a:hover { text-decoration-thickness: 2px; }
      against paper, where it looks anaemic. */
   :root:not([data-theme="light"]) .masthead h1 .icon { stroke-width: 1.15; }
 }
-/* Part of the wordmark, so it hugs the title. Oxblood rather than grey: the
-   tagline below is grey italic too, and two of those in a row read as one
-   wrapped paragraph rather than as two different kinds of statement. The
-   accent is already the masthead's own colour, from the reel beside it. */
+
+/* Part of the wordmark, so it hugs the title. Set in the reading face so the
+   joke reads as a line of copy under a poster title, which is what it is. */
 .jokeline {
-  margin: 5px 0 0;
-  font-size: 14.5px;
+  margin: 10px 0 0;
+  font-size: 17px;
   font-style: italic;
-  letter-spacing: 0.01em;
-  color: var(--accent);
+  color: inherit;
 }
 
 .tagline {
   margin: 6px 0 0;
-  font-size: 15px;
-  font-style: italic;
+  font-size: 16px;
   color: var(--muted-flat);
 }
 
 /* The joke belongs to the title above it; the live count belongs to the list
    below. Enough of a gap to say so. */
-.jokeline + .tagline { margin-top: 11px; }
+.jokeline + .tagline { margin-top: 12px; }
 
-/* The editor's note: why this page is here at all. Folded away behind its own
-   summary - it earns a read once, not a permanent seven lines above the list
-   the page exists to show.
-
-   No `max-width` on this or the tagline, deliberately. A 65-character measure
-   is the textbook setting for reading, but the filter form directly beneath
-   runs the full 1080px, and a text column half that width above it reads as
-   truncated rather than considered. Matching the page beats matching the
-   typography manual. */
-/* The one badge on the page that makes a claim about the page. Oxblood tint
-   rather than a filled pill: the accent is already spoken for by the 70 mm
-   badge in the listings, and a second solid block of it in the masthead would
-   compete with the thing people came here to find. */
+/* The one badge on the page that makes a claim about the page. Written on the
+   sheet in ink, with a hairline: the yellow is already the loudest thing on
+   screen and a second filled block on it would compete with the title. */
 .privacybadge {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin: 14px 0 0;
-  padding: 4px 11px;
-  border: 1px solid var(--accent-dim);
+  margin: 26px 0 0;
+  padding: 5px 12px;
+  border: 1px solid var(--stage-ink);
   border-radius: 2px;
-  background: var(--hot-bg);
-  color: var(--accent);
-  font-size: 13.5px;
+  background: transparent;
+  color: var(--stage-ink);
+  font-size: 14px;
   letter-spacing: 0.01em;
   text-decoration: none;
 }
 .privacybadge:hover {
-  border-color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  background: var(--frame);
+  color: var(--frame-ink);
 }
 .privacybadge:focus-visible {
   outline: 2px solid var(--accent);
@@ -210,16 +298,18 @@ a:hover { text-decoration-thickness: 2px; }
 
 /* The badge sits above the disclosure, so .why loses its own top margin and
    takes the gap from here instead. */
-.privacybadge + .why { margin-top: 12px; }
+.privacybadge + .why { margin-top: 14px; }
 
 .why {
   margin: 14px 0 0;
-  font-size: 14.5px;
+  max-width: 68ch;
+  font-size: 15.5px;
   line-height: 1.6;
-  color: var(--muted-flat);
+  color: var(--stage-muted);
 }
 .why > p { margin: 8px 0 0; }
-.why strong { color: var(--ink); }
+.why strong { color: var(--stage-ink); }
+.why a { color: var(--stage-ink); }
 
 /* --------------------------------------------------- disclosure summaries */
 
@@ -230,20 +320,19 @@ a:hover { text-decoration-thickness: 2px; }
 
    The browser's own disclosure triangle is left in place rather than replaced
    with an icon: it already says "this opens", it rotates on open for free, and
-   a second custom caret beside it just reads as a duplicate. That also means
-   no `display` change here - laying a summary out with flex detaches the
-   marker and it stops being suppressible or positionable. */
+   a second custom caret beside it just reads as a duplicate. */
 .why > summary,
 .filterpanel > summary {
   width: fit-content;
   padding: 2px 0;
   cursor: pointer;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 15px;
 }
+.why > summary { color: var(--stage-ink); }
 
 .why > summary:hover,
-.filterpanel > summary:hover { color: var(--accent); }
+.filterpanel > summary:hover { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 
 .why > summary:focus-visible,
 .filterpanel > summary:focus-visible {
@@ -258,7 +347,7 @@ a:hover { text-decoration-thickness: 2px; }
 
 .themetoggle {
   position: absolute;
-  top: 4px;
+  top: 0;
   right: 24px;
   display: inline-flex;
   align-items: center;
@@ -266,66 +355,71 @@ a:hover { text-decoration-thickness: 2px; }
   padding: 5px 11px;
   font: inherit;
   font-size: 13px;
-  color: var(--muted-flat);
+  color: var(--stage-ink);
   background: transparent;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--stage-rule);
   border-radius: 2px;
   cursor: pointer;
 }
-.themetoggle:hover { color: var(--ink); border-color: var(--rule-firm); }
+.themetoggle:hover { border-color: var(--stage-ink); }
 
 /* ------------------------------------------------------------------ tabs */
 
+/* A green strip lying across the seam between the sheet and the list, with
+   the same hard shadow as the title frame. The active tab is cut out in the
+   frame colour. */
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
-  margin: 20px 0 0;
-  border-bottom: 1px solid var(--rule-firm);
+  gap: 4px;
+  margin: -22px 0 0;
+  padding: 6px;
+  background: var(--green);
+  box-shadow: 8px 8px 0 var(--ink);
 }
 .tabs button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 9px 16px;
-  margin-bottom: -1px;
+  padding: 8px 14px;
   font: inherit;
   font-size: 15px;
-  color: var(--muted-flat);
+  color: var(--on-green);
   background: transparent;
   border: 1px solid transparent;
-  border-bottom: 1px solid var(--rule-firm);
-  border-radius: 2px 2px 0 0;
+  border-radius: 2px;
   cursor: pointer;
 }
-.tabs button:hover { color: var(--ink); }
+.tabs button:hover { border-color: var(--on-green); }
 .tabs button.on {
-  color: var(--ink-strong);
-  font-weight: 700;
-  background: var(--raised);
-  border-color: var(--rule-firm);
-  border-bottom-color: var(--raised);
+  color: var(--frame-ink);
+  font-weight: 600;
+  background: var(--frame);
+  border-color: var(--frame);
 }
 .tabs button.on .icon { color: var(--accent); }
 
 /* --------------------------------------------------------------- verdict */
 
-/* The answer to "can I see real film where I live?" comes before any list. */
+/* The answer to "can I see real film where I live?" comes before any list.
+   A second white frame, smaller than the title's, lifted on the same shadow
+   when the answer is yes and left flat when it is no. */
 .verdict {
-  margin: 18px 0 0;
-  padding: 18px 20px;
-  background: var(--raised);
-  border: 1px solid var(--rule-firm);
-  border-left: 3px solid var(--rule-firm);
-  border-radius: 2px;
+  margin: 34px 0 0;
+  padding: 18px 22px;
+  color: var(--frame-ink);
+  background: var(--frame);
+  border: 1px solid var(--ink);
 }
-.verdict.yes { border-left-color: var(--accent); }
-.verdict.no { border-left-color: var(--muted-flat); }
+.verdict.yes { box-shadow: 8px 8px 0 var(--frame-shadow); }
+.verdict.no { border-color: var(--rule-firm); }
 
 .verdict p { margin: 0; max-width: 68ch; }
 .verdict-q {
-  font-size: 13px;
-  letter-spacing: 0.09em;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted-flat);
 }
@@ -333,17 +427,19 @@ a:hover { text-decoration-thickness: 2px; }
   display: flex;
   align-items: center;
   gap: 9px;
-  margin: 2px 0 6px !important;
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1.2;
+  margin: 2px 0 8px !important;
+  font-family: var(--display);
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
   color: var(--ink-strong);
 }
-.verdict.yes .verdict-a { color: var(--hot); }
-.verdict-a .icon { font-size: 26px; }
+.verdict.yes .verdict-a .icon { color: var(--accent); }
+.verdict-a .icon { font-size: 30px; }
 .verdict .how {
   margin-top: 10px !important;
-  font-size: 13px;
+  font-size: 14px;
   font-style: italic;
   color: var(--muted-flat);
 }
@@ -351,7 +447,7 @@ a:hover { text-decoration-thickness: 2px; }
 /* -------------------------------------------------------------- controls */
 
 #controls {
-  padding: 18px 0 20px;
+  padding: 26px 0 20px;
   margin: 0;
   border-bottom: 1px solid var(--rule);
 }
@@ -370,12 +466,12 @@ a:hover { text-decoration-thickness: 2px; }
   font: inherit;
   font-size: 17px;
   padding: 10px 14px 10px 38px;
-  color: var(--ink);
-  background: var(--raised);
-  border: 1px solid var(--rule-firm);
+  color: var(--frame-ink);
+  background: var(--frame);
+  border: 1px solid var(--ink);
   border-radius: 2px;
 }
-#q::placeholder { color: var(--muted-flat); opacity: 0.8; }
+#q::placeholder { color: var(--muted-flat); opacity: 0.9; font-style: italic; }
 #q:focus-visible,
 select:focus-visible,
 button:focus-visible {
@@ -390,13 +486,13 @@ button.ghost {
   font: inherit;
   font-size: 15px;
   padding: 9px 14px;
-  color: var(--ink);
-  background: var(--raised);
-  border: 1px solid var(--rule-firm);
+  color: var(--frame-ink);
+  background: var(--frame);
+  border: 1px solid var(--ink);
   border-radius: 9px;
   cursor: pointer;
 }
-button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+button.ghost:hover { border-color: var(--accent); }
 button.ghost:disabled { opacity: 0.5; cursor: progress; }
 
 .toggles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -406,31 +502,24 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   gap: 7px;
   padding: 6px 13px;
   font-size: 14px;
-  color: var(--muted-flat);
-  background: transparent;
-  border: 1px solid var(--rule);
-  /* Part of the one place the hairline-and-2px house style gives way. The rule
-     is by role, not by element: anything you press is rounded - these switches,
-     the filter chips, the ghost buttons - while rules, panels and the inputs
-     you type or choose into stay square. */
+  color: var(--frame-ink);
+  background: var(--frame);
+  border: 1px solid var(--rule-firm);
+  /* The rule is by role, not by element: anything you press is rounded - these
+     switches, the filter chips, the ghost buttons - while rules, panels and the
+     inputs you type or choose into stay square. */
   border-radius: 9px;
   cursor: pointer;
   user-select: none;
 }
-.toggle:hover { border-color: var(--rule-firm); color: var(--ink); }
-/* Switches now, not labels wrapping a checkbox: the state lives on the element
-   as aria-checked, so the selector reads it there. */
-/* Every switch turns oxblood when it is on, the 70 mm one included. It used to
-   be the only one that did, and the others went a raised near-white - so two
-   controls sitting in the same panel, doing the same thing, disagreed about
-   what "on" looks like. One state, one colour.
-
-   The 70 mm switch keeps its prominence through size and position rather than
-   through being the only red thing. */
+.toggle:hover { border-color: var(--ink); }
+/* Every switch turns yellow when it is on, the 70 mm one included. One state,
+   one colour - and the same yellow as the film badge, since it is the same
+   claim being made. */
 .toggle[aria-checked="true"] {
   color: var(--hot);
   background: var(--hot-bg);
-  border-color: var(--accent);
+  border-color: var(--on-yellow);
 }
 .toggle .icon { font-size: 15px; opacity: 0.8; }
 .toggle[aria-checked="true"] .icon { opacity: 1; }
@@ -454,20 +543,23 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
-  letter-spacing: 0.09em;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted-flat);
 }
 .quickcountry select {
   font: inherit;
+  font-family: var(--serif);
   font-size: 15px;
   letter-spacing: normal;
   text-transform: none;
-  color: var(--ink);
+  color: var(--frame-ink);
   padding: 8px 10px;
-  background: var(--raised);
-  border: 1px solid var(--rule);
+  background: var(--frame);
+  border: 1px solid var(--rule-firm);
   border-radius: 2px;
 }
 
@@ -481,19 +573,22 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 11px;
-  letter-spacing: 0.09em;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted-flat);
 }
 .selects select {
   font: inherit;
+  font-family: var(--serif);
   font-size: 15px;
   letter-spacing: normal;
   text-transform: none;
   padding: 8px 9px;
-  color: var(--ink);
-  background: var(--raised);
+  color: var(--frame-ink);
+  background: var(--frame);
   border: 1px solid var(--rule-firm);
   border-radius: 2px;
 }
@@ -504,17 +599,20 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
    the key to every badge on the page, so it gets a tab. */
 .legend { margin: 4px 0 4px; }
 .typeshead {
-  margin: 18px 0 14px;
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  margin: 30px 0 14px;
+  font-family: var(--display);
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
   color: var(--ink-strong);
 }
 
 .legend .standfirst {
   max-width: 68ch;
   margin: 0 0 18px;
-  font-size: 16px;
+  font-size: 17px;
   color: var(--muted-flat);
 }
 
@@ -527,24 +625,28 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
 }
 .ranks > li {
   position: relative;
-  padding: 0 0 14px 44px;
+  padding: 0 0 14px 52px;
   margin-bottom: 14px;
   border-bottom: 1px solid var(--rule);
   counter-increment: rank;
 }
 .ranks > li:last-child { border-bottom: none; }
+/* The ranking is a real order - best picture first - so it earns its number,
+   set light and large in the display face. */
 .ranks > li::before {
   content: counter(rank);
   position: absolute;
   left: 0;
-  top: -2px;
-  width: 30px;
-  font-size: 24px;
-  font-weight: 700;
+  top: -6px;
+  width: 36px;
+  font-family: var(--display);
+  font-size: 40px;
+  font-weight: 300;
+  line-height: 1;
   text-align: right;
-  color: var(--rule-firm);
+  color: var(--ink);
 }
-.ranks p { margin: 7px 0 0; font-size: 15px; }
+.ranks p { margin: 7px 0 0; font-size: 15.5px; }
 
 /* Badge in its own column rather than floated: wrapping text around a chip
    this small just produces a ragged two-line indent. */
@@ -554,8 +656,8 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   gap: 12px;
   max-width: 72ch;
   margin: 0 0 14px;
-  padding-left: 44px;
-  font-size: 15px;
+  padding-left: 52px;
+  font-size: 15.5px;
   color: var(--muted-flat);
 }
 .legend .aside .badge { flex: none; margin-top: 2px; }
@@ -576,8 +678,10 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   border-top: 1px solid var(--rule);
 }
 .af-label {
-  font-size: 11px;
-  letter-spacing: 0.09em;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted-flat);
 }
@@ -590,15 +694,15 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   padding: 4px 9px;
   font: inherit;
   font-size: 13px;
-  color: var(--ink);
-  background: var(--raised);
+  color: var(--frame-ink);
+  background: var(--frame);
   border: 1px solid var(--rule-firm);
   border-radius: 9px;
   cursor: pointer;
 }
 .chip .icon { font-size: 13px; color: var(--muted-flat); }
-.chip:hover { color: var(--hot); border-color: var(--accent); }
-.chip:hover .icon { color: var(--hot); }
+.chip:hover { border-color: var(--ink); }
+.chip:hover .icon { color: var(--accent); }
 
 button.ghost.small { font-size: 13px; padding: 5px 11px; }
 button.ghost.small .icon { font-size: 14px; }
@@ -625,7 +729,7 @@ button.ghost.small .icon { font-size: 14px; }
 }
 .pager .pageinfo { white-space: nowrap; }
 .pager button:disabled { opacity: 0.35; cursor: default; }
-.pager button:disabled:hover { color: var(--ink); border-color: var(--rule-firm); }
+.pager button:disabled:hover { border-color: var(--ink); }
 
 #pager-bottom .pager {
   justify-content: center;
@@ -649,7 +753,7 @@ button.ghost.small .icon { font-size: 14px; }
 
 .count {
   margin: 18px 0 4px;
-  font-size: 15px;
+  font-size: 15.5px;
   font-style: italic;
   color: var(--muted-flat);
 }
@@ -660,24 +764,25 @@ button.ghost.small .icon { font-size: 14px; }
 #results { min-height: 70vh; }
 
 .group { margin-bottom: 8px; }
-/* Country headings were set as quiet muted small-caps and were easy to scroll
-   straight past. They are the only landmark in a list of 476 rows, so they now
-   take the ink colour, a heavier rule beneath, and more air above than below —
-   which visually attaches each heading to the venues it introduces rather than
-   letting it float between two groups. */
+/* Country headings are the only landmark in a list of nearly five hundred
+   rows, so they are set in the display face with a firm rule beneath, and
+   given more air above than below - which visually attaches each heading to
+   the venues it introduces rather than letting it float between two groups. */
 .group > h2 {
   position: sticky;
   top: 0;
   z-index: 1;
-  margin: 30px 0 0;
-  padding: 8px 0 6px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.13em;
+  margin: 34px 0 0;
+  padding: 10px 0 5px;
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--ink-strong);
   background: var(--paper);
-  border-bottom: 2px solid var(--rule-firm);
+  border-bottom: 3px solid var(--ink);
 }
 /* The first heading should not push the list away from the count line. */
 .group:first-child > h2 { margin-top: 14px; }
@@ -693,8 +798,7 @@ button.ghost.small .icon { font-size: 14px; }
  *     -1 resolves to the end of the explicit grid, which is line 1.
  *   - Three links, not five. At five the stack was taller than everything
  *     beside it, so it set the row height and the slack showed as gaps in the
- *     middle of the card. Dropping Directions and the per-venue Report is what
- *     made this layout viable again. */
+ *     middle of the card. */
 .venue {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -703,17 +807,28 @@ button.ghost.small .icon { font-size: 14px; }
   border-bottom: 1px solid var(--rule);
 }
 .venue-main { grid-column: 1; min-width: 0; }
+/* A film house carries the perforation: one sprocket hole in the margin,
+   green, the same mark the title frame runs down its edge. */
 .venue.film70 {
-  padding-left: 14px;
-  border-left: 3px solid var(--accent);
-  margin-left: -17px;
+  position: relative;
+  padding-left: 18px;
+}
+.venue.film70::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22px;
+  width: 6px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--accent);
 }
 .venue.gone { opacity: 0.5; }
 
 .venue h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 19px;
+  font-weight: 600;
   line-height: 1.3;
   color: var(--ink-strong);
 }
@@ -722,7 +837,7 @@ button.ghost.small .icon { font-size: 14px; }
   align-items: center;
   gap: 5px;
   margin: 3px 0 0;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--muted-flat);
 }
 /* Slightly recessed: the pin is a marker for the eye scanning down the column,
@@ -747,17 +862,17 @@ button.ghost.small .icon { font-size: 14px; }
   font: inherit;
   font-size: 14px;
   padding: 6px 10px;
-  color: var(--ink);
-  background: var(--raised);
-  border: 1px solid var(--rule);
+  color: var(--frame-ink);
+  background: var(--frame);
+  border: 1px solid var(--rule-firm);
   border-radius: 2px;
   min-width: 200px;
 }
 .citypick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* The suggestion menu under it - ours, because the native datalist popover is
-   browser chrome and takes no styling, which stuck out of the newsprint page
-   like a sticker. Anchored to the input, raised paper, hairline edge. */
+   browser chrome and takes no styling. Anchored to the input, on the frame
+   colour, with the same hard shadow the rest of the page's raised things use. */
 .citybox { position: relative; display: inline-block; }
 .citymenu {
   position: absolute;
@@ -770,10 +885,10 @@ button.ghost.small .icon { font-size: 14px; }
   min-width: 230px;
   max-height: 260px;
   overflow-y: auto;
-  background: var(--raised);
-  border: 1px solid var(--rule-firm);
+  background: var(--frame);
+  border: 1px solid var(--ink);
   border-radius: 2px;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
+  box-shadow: 6px 6px 0 var(--accent);
 }
 .citymenu li { margin: 0; }
 .citymenu button {
@@ -783,7 +898,7 @@ button.ghost.small .icon { font-size: 14px; }
   font: inherit;
   font-size: 14px;
   padding: 6px 9px;
-  color: var(--ink);
+  color: var(--frame-ink);
   background: transparent;
   border: 0;
   border-radius: 2px;
@@ -811,7 +926,7 @@ button.ghost.small .icon { font-size: 14px; }
    it is the same kind of remark. */
 .geostatus {
   margin: 0 0 6px;
-  font-size: 13px;
+  font-size: 14px;
   font-style: italic;
   color: var(--muted-flat);
 }
@@ -823,7 +938,7 @@ button.ghost.small .icon { font-size: 14px; }
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .links a { display: inline-flex; align-items: center; gap: 5px; }
@@ -844,11 +959,11 @@ button.ghost.small .icon { font-size: 14px; }
   align-items: center;
   gap: 5px;
   padding: 3px 9px;
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.45;
-  color: var(--muted-flat);
+  color: var(--ink);
   background: transparent;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--rule-firm);
   border-radius: 2px;
   cursor: help;
 }
@@ -856,15 +971,15 @@ button.ghost.small .icon { font-size: 14px; }
 .badge.film .icon, .badge.tall .icon { opacity: 1; }
 
 /* The film badge is the one people are scanning for, so it is the only badge
- * allowed to shout: oxblood, and sprocket perforations ruled along the top and
- * bottom edges so it reads as a short strip of film. */
+ * allowed to shout: the poster yellow, and sprocket perforations ruled along
+ * the top and bottom edges so it reads as a short strip of film. */
 .badge.film {
   position: relative;
   padding: 4px 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--hot);
   background: var(--hot-bg);
-  border-color: var(--accent);
+  border-color: var(--on-yellow);
 }
 .badge.film::before,
 .badge.film::after {
@@ -881,17 +996,18 @@ button.ghost.small .icon { font-size: 14px; }
 .badge.film::after { bottom: 2px; }
 
 .badge.tall {
-  color: var(--accent);
-  border-color: var(--accent-dim);
+  color: var(--ink);
+  border-color: var(--accent);
   border-style: solid;
-  font-weight: 700;
+  font-weight: 600;
 }
+.badge.tall .icon { color: var(--accent); }
 .badge.size { font-variant-numeric: tabular-nums; }
 .badge.muted { border-style: dashed; opacity: 0.9; }
 
 .note {
   margin: 8px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   font-style: italic;
   color: var(--muted-flat);
 }
@@ -905,37 +1021,49 @@ button.ghost.small .icon { font-size: 14px; }
 .empty p { margin: 0; }
 .empty .big {
   margin-bottom: 6px;
-  font-size: 19px;
-  font-weight: 700;
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 800;
+  text-transform: uppercase;
   color: var(--ink-strong);
 }
-.error { color: var(--hot); }
+.error { color: var(--ink-strong); }
 
 /* ---------------------------------------------------------------- footer */
 
-/* Full-bleed like .masthead, with the centring left to the inner .wrap, so the
-   closing double rule spans the viewport exactly as the opening one does.
+/* Full-bleed like .masthead, with the centring left to the inner .wrap. The
+   green sheet closes the page the way the yellow one opened it.
    (Putting .wrap on <footer> itself and then setting `margin` here silently
    overrode its `margin: 0 auto` and shunted the whole footer left.) */
 footer {
-  margin-top: 34px;
-  padding: 18px 0 48px;
-  border-top: 3px double var(--rule-firm);
-  font-size: 14px;
-  color: var(--muted-flat);
+  margin-top: 55px;
+  padding: 26px 0 48px;
+  background: var(--green);
+  color: var(--on-green);
+  font-size: 14.5px;
 }
+footer a { color: inherit; text-decoration-color: var(--yellow); }
+footer a:hover { text-decoration-color: var(--on-green); }
 footer .src {
   margin: 8px 0 0;
-  font-size: 13px;
+  max-width: 76ch;
+  font-size: 14px;
   line-height: 1.6;
 }
 footer .licence {
   padding-top: 10px;
   margin-top: 12px;
-  border-top: 1px solid var(--rule);
-  font-size: 12px;
+  border-top: 1px solid var(--on-green);
+  font-size: 12.5px;
 }
-footer #asof { display: block; font-variant-numeric: tabular-nums; }
+footer #asof {
+  display: block;
+  font-family: var(--display);
+  font-size: 18px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
 
 /* --------------------------------------------------------- privacy page */
 
@@ -945,9 +1073,9 @@ footer #asof { display: block; font-variant-numeric: tabular-nums; }
    comfortable to track across. */
 
 .prose {
-  padding-top: 26px;
-  font-size: 16.5px;
-  line-height: 1.68;
+  padding-top: 30px;
+  font-size: 17px;
+  line-height: 1.65;
 }
 
 /* The measure goes on the blocks, not on .prose itself. .prose is also a .wrap,
@@ -959,24 +1087,26 @@ footer #asof { display: block; font-variant-numeric: tabular-nums; }
 .prose h2 {
   margin: 34px 0 0;
   padding-top: 14px;
-  border-top: 1px solid var(--rule);
-  font-size: 19px;
-  font-weight: 600;
+  border-top: 1px solid var(--rule-firm);
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   color: var(--ink-strong);
 }
 .prose p { margin: 12px 0 0; }
 
 /* The page's headline. Takes none of the .prose h2 treatment - no rule above,
-   no top margin - because it opens the document rather than dividing it, and a
-   rule directly under the masthead's double rule reads as a mistake. */
+   no top margin - because it opens the document rather than dividing it. */
 .prose .pagetitle {
   margin: 0 0 14px;
   padding: 0;
   border: 0;
-  font-size: 30px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 0.95;
   color: var(--ink-strong);
 }
 
@@ -984,8 +1114,8 @@ footer #asof { display: block; font-variant-numeric: tabular-nums; }
    and most readers will not go past it. */
 .prose .lede {
   margin: 0;
-  font-size: 19px;
-  line-height: 1.55;
+  font-size: 20px;
+  line-height: 1.5;
   color: var(--ink-strong);
 }
 
@@ -1011,7 +1141,8 @@ footer #asof { display: block; font-variant-numeric: tabular-nums; }
 .prose code {
   padding: 1px 5px;
   font-size: 0.88em;
-  background: var(--raised);
+  color: var(--frame-ink);
+  background: var(--frame);
   border: 1px solid var(--rule);
   border-radius: 2px;
   /* Long enough on a phone to need the break, since the alternative is a
@@ -1022,7 +1153,7 @@ footer #asof { display: block; font-variant-numeric: tabular-nums; }
 .prose .backlink {
   margin-top: 34px;
   padding-top: 16px;
-  border-top: 3px double var(--rule-firm);
+  border-top: 3px solid var(--ink);
   font-size: 15px;
 }
 
@@ -1035,9 +1166,10 @@ footer #asof { display: block; font-variant-numeric: tabular-nums; }
 }
 .panel h2 {
   margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted-flat);
 }
@@ -1072,7 +1204,7 @@ footer #asof { display: block; font-variant-numeric: tabular-nums; }
   border-left: 3px solid var(--rule-firm);
   margin-bottom: 8px;
 }
-.findings li.bad { border-left-color: var(--hot); }
+.findings li.bad { border-left-color: var(--yellow); }
 .findings li p { margin: 3px 0 0; font-size: 14px; color: var(--muted-flat); }
 .findings .examples { font-size: 13px; font-style: italic; }
 .ok { color: var(--accent); font-weight: 700; }
@@ -1094,9 +1226,28 @@ table.changes td {
 }
 table.changes td.was { color: var(--muted-flat); text-decoration: line-through; }
 
+@media (prefers-reduced-motion: no-preference) {
+  /* One moment on load: the title frame is pasted onto the sheet - it starts
+     flat on its shadow and lifts off it. Only the position is animated:
+     Chrome resolves a light-dark() colour inside @keyframes to its light
+     value whatever the theme, so a keyframe naming the frame's background
+     painted it white in the dark theme until the animation ended. */
+  .frame {
+    animation: paste 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  @keyframes paste {
+    from { transform: translate(10px, 10px); }
+    to   { transform: none; }
+  }
+}
+
 @media (max-width: 620px) {
-  .masthead h1 { font-size: 27px; }
+  .masthead { padding-top: 18px; }
+  .masthead h1 { font-size: 40px; }
+  .frame { padding: 20px 20px 18px 44px; box-shadow: 7px 7px 0 var(--frame-shadow); }
   .themetoggle { position: static; margin-bottom: 12px; }
+  .tabs { box-shadow: 6px 6px 0 var(--ink); }
+  .verdict-a { font-size: 38px; }
   /* No room for a second column on a phone: fold the links underneath. */
   .venue { grid-template-columns: 1fr; }
   .links {

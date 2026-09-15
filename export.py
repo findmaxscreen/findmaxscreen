@@ -53,7 +53,13 @@ PUBLIC_FILES = ("index.html", "app.js", "query.js", "geo.js", "style.css",
                 "og.png", "apple-touch-icon.png",
                 # Crawler files. robots.txt names the sitemap by absolute URL,
                 # so the same argument applies: ship both or neither.
-                "robots.txt", "sitemap.xml")
+                "robots.txt", "sitemap.xml",
+                # The two typefaces, self-hosted because the page's CSP allows
+                # fonts from this origin only. style.css names all four files,
+                # and a missing one falls back silently to a system face, so
+                # they are required rather than optional.
+                "fonts/BigShouldersDisplay.woff2", "fonts/Newsreader-400.woff2",
+                "fonts/Newsreader-600.woff2", "fonts/Newsreader-400i.woff2")
 PUBLIC_DATA = ("data/venues.json",)
 
 # Shipped when present, but their absence is not an error.  GitHub Pages reads
@@ -323,6 +329,7 @@ def build_dist(dist: Path = DIST_DIR) -> list[Path]:
         source = WEB_DIR / name
         if not source.is_file():
             raise ExportError(f"missing public file {source}")
+        (dist / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dist / name)
         written.append(dist / name)
 
