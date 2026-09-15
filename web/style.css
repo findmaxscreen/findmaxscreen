@@ -171,7 +171,6 @@ a:hover { text-decoration-color: var(--ink); }
   gap: 8px 21px;
   padding-bottom: 26px;
 }
-.mast .jokeline { margin-left: auto; }
 
 /* The stage: the question on its frame, the numbers beside it. */
 .stage {
@@ -305,19 +304,20 @@ a:hover { text-decoration-color: var(--ink); }
   :root:not([data-theme="light"]) .masthead h1 .icon { stroke-width: 1.15; }
 }
 
-/* Part of the wordmark's row. Set in the reading face so the joke reads as a
-   line of copy beside a poster title, which is what it is. */
+/* Under the question, in the reading face's italic: the answer's tone of
+   voice before the answer itself. */
 .jokeline {
-  margin: 0;
-  font-size: 17px;
+  margin: 21px 0 0;
+  font-size: clamp(18px, 1.8vw, 23px);
   font-style: italic;
-  color: var(--stage-muted);
+  max-width: 34ch;
+  color: var(--frame-ink);
 }
 
-/* The live count, under the question. */
+/* The data-load error, and the privacy page's badge. */
 .tagline {
   margin: 21px 0 0;
-  font-size: clamp(17px, 1.6vw, 20px);
+  font-size: 17px;
   max-width: 40ch;
   color: var(--muted-flat);
 }
@@ -1336,7 +1336,6 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
 @media (max-width: 620px) {
   .masthead { padding-top: 16px; }
   .mast { padding-bottom: 18px; }
-  .mast .jokeline { order: 3; flex-basis: 100%; margin-left: 0; }
   .frame { padding: 20px 20px 18px 44px; box-shadow: 7px 7px 0 var(--frame-shadow); }
   .booth dt { font-size: 48px; }
   .tabs { box-shadow: 6px 6px 0 var(--ink); }

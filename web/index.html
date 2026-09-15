@@ -275,10 +275,6 @@
     <div class="mast">
       <h1><a href="./" id="home" title="Back to the start — clears every filter"
         ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reel"></use></svg>Find <b>Max</b> Screen</a></h1>
-      <!-- The joke only lands for the audience this site has - Nolan shot The
-           Odyssey on 15/70, which is the format the whole page is about - and
-           it is a subtitle, so anyone who misses it has lost nothing. -->
-      <p class="jokeline">Finding the best screen shouldn't be an Odyssey</p>
       <button type="button" id="theme" class="themetoggle" title="Switch theme">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
         <span id="thememode">Auto</span>
@@ -293,7 +289,14 @@
     <div class="stage">
       <div class="frame">
         <p class="headline">Which IMAX still runs real film?</p>
-        <p class="tagline" id="tagline">Loading…</p>
+        <!-- The joke only lands for the audience this site has - Nolan shot The
+             Odyssey on 15/70, which is the format the whole page is about - and
+             it is a subtitle, so anyone who misses it has lost nothing. The
+             counts it used to share this frame with now stand beside it. -->
+        <p class="jokeline">Finding the best screen shouldn't be an Odyssey</p>
+        <!-- Only ever shown when venues.json fails to load; app.js unhides it
+             with the reason. -->
+        <p class="tagline" id="tagline" hidden></p>
       </div>
       <dl class="booth">
         <div class="stat"><dt id="stat-film70">—</dt><dd>theatres still project 15/70&nbsp;mm film.</dd></div>
