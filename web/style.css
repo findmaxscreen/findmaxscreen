@@ -60,14 +60,17 @@
   --on-yellow: #14382a;
   --on-green:  #0f2a20;
 
-  --paper:      light-dark(#afc0e3, #10201a);
-  --raised:     light-dark(#ffffff, #182b23);
-  --ink:        light-dark(#14382a, #dfe8e3);
+  /* The evening edition keeps all three poster colours: the sheet stays a
+     deep green, the list goes to a deep periwinkle rather than black, and the
+     text takes a periwinkle-tinted white so it belongs to that ground. */
+  --paper:      light-dark(#afc0e3, #232847);
+  --raised:     light-dark(#ffffff, #2b3156);
+  --ink:        light-dark(#14382a, #e8ebf7);
   --ink-strong: light-dark(#0f2a20, #ffffff);
-  --muted:      light-dark(#3f5a4d, #9fb3a9);
-  --muted-flat: light-dark(#3f5a4d, #9fb3a9);
-  --rule:       light-dark(#14382a47, #dfe8e329);
-  --rule-firm:  light-dark(#14382a8c, #dfe8e359);
+  --muted:      light-dark(#3f5a4d, #bcc4e0);
+  --muted-flat: light-dark(#3f5a4d, #bcc4e0);
+  --rule:       light-dark(#14382a47, #e8ebf73d);
+  --rule-firm:  light-dark(#14382a8c, #e8ebf780);
 
   /* The masthead sheet and what is written straight onto it. */
   --stage:        light-dark(#fff462, #163d2e);
@@ -77,8 +80,13 @@
 
   /* The frame the title sits on, and the hard shadow that lifts it. */
   --frame:        light-dark(#ffffff, #0f1f18);
-  --frame-ink:    light-dark(#14382a, #dfe8e3);
+  --frame-ink:    light-dark(#14382a, #e8ebf7);
   --frame-shadow: light-dark(#3ab483, #fff462);
+  /* The boxes down in the list - verdict, inputs, menus, buttons - sit on
+     the periwinkle, so in the evening they are a deeper periwinkle, not the
+     sheet's green-black. */
+  --card:         light-dark(#ffffff, #171b36);
+  --card-ink:     light-dark(#14382a, #e8ebf7);
 
   /* Green is the working accent: icons, rings, rules that mean something. */
   --accent:     #3ab483;
@@ -437,10 +445,10 @@ a:hover { text-decoration-color: var(--ink); }
 }
 .tabs button:hover { border-color: var(--on-green); }
 .tabs button.on {
-  color: var(--frame-ink);
+  color: var(--card-ink);
   font-weight: 600;
-  background: var(--frame);
-  border-color: var(--frame);
+  background: var(--card);
+  border-color: var(--card);
 }
 .tabs button.on .icon { color: var(--accent); }
 
@@ -452,8 +460,8 @@ a:hover { text-decoration-color: var(--ink); }
 .verdict {
   margin: 34px 0 0;
   padding: 18px 22px;
-  color: var(--frame-ink);
-  background: var(--frame);
+  color: var(--card-ink);
+  background: var(--card);
   border: 1px solid var(--ink);
 }
 .verdict.yes { box-shadow: 8px 8px 0 var(--frame-shadow); }
@@ -573,8 +581,8 @@ button.ghost {
   font: inherit;
   font-size: 15px;
   padding: 9px 14px;
-  color: var(--frame-ink);
-  background: var(--frame);
+  color: var(--card-ink);
+  background: var(--card);
   border: 1px solid var(--ink);
   border-radius: 2px;
   cursor: pointer;
@@ -696,8 +704,8 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   letter-spacing: normal;
   text-transform: none;
   padding: 8px 9px;
-  color: var(--frame-ink);
-  background: var(--frame);
+  color: var(--card-ink);
+  background: var(--card);
   border: 1px solid var(--rule-firm);
   border-radius: 2px;
 }
@@ -973,8 +981,8 @@ button.ghost.small .icon { font-size: 14px; }
   font: inherit;
   font-size: 14px;
   padding: 6px 10px;
-  color: var(--frame-ink);
-  background: var(--frame);
+  color: var(--card-ink);
+  background: var(--card);
   border: 1px solid var(--rule-firm);
   border-radius: 2px;
   min-width: 200px;
@@ -996,7 +1004,7 @@ button.ghost.small .icon { font-size: 14px; }
   min-width: 230px;
   max-height: 260px;
   overflow-y: auto;
-  background: var(--frame);
+  background: var(--card);
   border: 1px solid var(--ink);
   border-radius: 2px;
   box-shadow: 6px 6px 0 var(--accent);
@@ -1009,7 +1017,7 @@ button.ghost.small .icon { font-size: 14px; }
   font: inherit;
   font-size: 14px;
   padding: 6px 9px;
-  color: var(--frame-ink);
+  color: var(--card-ink);
   background: transparent;
   border: 0;
   border-radius: 2px;
@@ -1266,8 +1274,8 @@ footer #asof {
 .prose code {
   padding: 1px 5px;
   font-size: 0.88em;
-  color: var(--frame-ink);
-  background: var(--frame);
+  color: var(--card-ink);
+  background: var(--card);
   border: 1px solid var(--rule);
   border-radius: 2px;
   /* Long enough on a phone to need the break, since the alternative is a
