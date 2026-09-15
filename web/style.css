@@ -185,7 +185,7 @@ a:hover { text-decoration-color: var(--ink); }
   display: grid;
   grid-template-columns: 1fr;
   gap: 34px;
-  align-items: end;
+  align-items: center;
 }
 @media (min-width: 900px) { .stage { grid-template-columns: 5fr 3fr; } }
 
@@ -194,7 +194,7 @@ a:hover { text-decoration-color: var(--ink); }
    tagline is a live count and gets longer in some countries. */
 .frame {
   position: relative;
-  padding: 30px 34px 28px 58px;
+  padding: 28px 34px 26px 58px;
   color: var(--frame-ink);
   background: var(--frame);
   box-shadow: 10px 10px 0 var(--frame-shadow);
@@ -203,13 +203,13 @@ a:hover { text-decoration-color: var(--ink); }
 .headline {
   margin: 0;
   font-family: var(--display);
-  font-size: clamp(40px, 6.4vw, 80px);
+  font-size: clamp(36px, 4.6vw, 60px);
   font-weight: 900;
-  line-height: 0.92;
+  line-height: 0.95;
   letter-spacing: 0.005em;
   text-transform: uppercase;
   text-wrap: balance;
-  max-width: 12ch;
+  max-width: 14ch;
   color: var(--ink-strong);
 }
 
