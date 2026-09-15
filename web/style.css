@@ -260,8 +260,12 @@ a:hover { text-decoration-color: var(--ink); }
   inset: 0 auto 0 0;
   width: 26px;
   border-right: 1px solid var(--frame-shadow);
+  /* `round` in the vertical direction stretches the tile so a whole number
+     of holes fits the frame's height - otherwise the last one is cut by the
+     bottom edge whenever the height is not a multiple of the tile. */
   background: radial-gradient(4px 5px at 13px 50%, var(--frame-shadow) 98%, transparent 100%)
-              0 0 / 26px 24px repeat-y;
+              0 0 / 26px 24px;
+  background-repeat: no-repeat round;
 }
 
 .masthead h1 {
