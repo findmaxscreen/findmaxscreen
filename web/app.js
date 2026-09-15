@@ -1442,7 +1442,7 @@ async function start() {
   // The three numbers beside the question.
   const s = data.stats;
   for (const [id, n] of [["stat-film70", s.film70], ["stat-venues", s.venues],
-                         ["stat-countries", s.countries], ["stat-dome", s.dome]]) {
+                         ["stat-countries", s.countries]]) {
     $(id).textContent = fmt.format(n);
   }
 
