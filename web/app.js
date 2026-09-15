@@ -866,8 +866,15 @@ function render() {
   const c = criteria();
   const result = search(state.venues, c);
 
-  results.replaceChildren();
   if (!result.venues.length) {
+    // A re-render while the empty state is already up - a restored position
+    // arriving, say - would restart the entrance; leave the scene playing.
+    if (results.querySelector(".empty")) {
+      countEl.textContent = "";
+      renderPagers(null, 0);
+      return;
+    }
+    results.replaceChildren();
     const empty = el("div", "empty");
     // The mascot rolls in off a reel of film and lands, let down. All of it
     // decorative - the two lines under it say what happened - and the whole
@@ -891,6 +898,7 @@ function render() {
     renderPagers(null, 0);
     return;
   }
+  results.replaceChildren();
 
   // Clamped rather than trusted: a filter change can shrink the result set
   // below the page you were on.
