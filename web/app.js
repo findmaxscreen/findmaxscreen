@@ -876,20 +876,11 @@ function render() {
     }
     results.replaceChildren();
     const empty = el("div", "empty");
-    // The mascot rolls in off a reel of film and lands, let down. All of it
-    // decorative - the two lines under it say what happened - and the whole
-    // scene is CSS transforms, so reduced-motion gets the still frame.
-    const scene = el("div", "rollin");
-    const strip = el("span", "filmstrip");
-    const reel = icon("reel");
-    reel.classList.add("reel");
-    const sad = el("img", "mascot");
-    sad.src = "mascot-sad.png";
-    sad.width = 200;
-    sad.height = 200;
-    sad.alt = "";
-    scene.append(strip, reel, sad);
-    empty.append(scene);
+    // The mascot unfurls out of its own tail - a coil of film that unrolls
+    // into the character - drawn as six frames on one sprite sheet that the
+    // stylesheet steps through. Decorative: the two lines under it say what
+    // happened, so it carries no text and reduced-motion gets the last frame.
+    empty.append(el("div", "mascot unfurl"));
     empty.append(el("p", "big", "Nothing matches all of that."));
     empty.append(el("p", null,
       "IMAX is a short list to begin with — try dropping a filter."));

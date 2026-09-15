@@ -1113,57 +1113,15 @@ button.ghost.small .icon { font-size: 14px; }
   border-bottom: 1px solid var(--rule);
 }
 .empty p { margin: 0; }
+/* Six frames on one sheet, 600% wide; background-position steps from the
+   first frame to the last, which is the finished pose. */
 .empty .mascot {
   display: block;
-  width: 200px;
-  height: 200px;
+  width: 218px;
+  height: 240px;
   margin: 0 auto 8px;
-}
-
-/* The scene: a reel at the right, a strip of film unspooling from it to the
-   left, and the mascot rolling along the strip to the middle. Sized in px
-   because the mascot is a bitmap with a fixed size; on a phone the strip
-   just runs shorter. */
-.rollin {
-  position: relative;
-  width: min(100%, 560px);
-  height: 236px;
-  margin: 0 auto 4px;
-}
-.rollin .filmstrip {
-  position: absolute;
-  left: 0;
-  right: 52px;
-  bottom: 16px;
-  height: 22px;
-  /* Film is dark in both themes, so the constant ink, not the themed one -
-     with a hairline in the themed rule colour, invisible on periwinkle and
-     the edge that keeps the strip from sinking into the dark ground. */
-  background-color: var(--on-green);
-  box-shadow: 0 0 0 1px var(--rule-firm);
-  /* Perforations along both edges, in the poster yellow. */
-  background-image:
-    repeating-linear-gradient(to right, var(--yellow) 0 6px, transparent 6px 14px),
-    repeating-linear-gradient(to right, var(--yellow) 0 6px, transparent 6px 14px);
-  background-size: 100% 4px, 100% 4px;
-  background-position: 4px 4px, 4px 14px;
-  background-repeat: no-repeat;
-  transform-origin: right center;
-}
-.rollin .reel {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 56px;
-  height: 56px;
-  color: var(--ink);
-  stroke-width: 1.4;
-}
-.rollin .mascot {
-  position: absolute;
-  left: 50%;
-  bottom: 30px;
-  margin: 0 0 0 -100px;
+  background: url(mascot-unfurl.png) 100% 0 / 600% 100% no-repeat;
+  transform-origin: 50% 100%;
 }
 :root[data-theme="dark"] .empty .mascot { filter: drop-shadow(0 0 1px #ffffffb0); }
 @media (prefers-color-scheme: dark) {
@@ -1398,41 +1356,24 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
     to   { transform: none; }
   }
 
-  /* The empty state. The reel turns and the strip unspools off it to the
-     left; the mascot rides the strip's leading edge as a tight coil - its
-     tail is a curl of film, so this is where it comes from - unfurling and
-     growing to full size as the strip runs out, then crouches and jumps the
-     rest of the way into the middle, landing with a squash. Every frame
-     names the same four functions so the interpolation stays honest. */
-  .rollin .reel { animation: reelspin 1s linear both; }
-  @keyframes reelspin {
-    from { transform: rotate(720deg); }
-    to   { transform: none; }
-  }
-  .rollin .filmstrip { animation: unspool 1s linear both; }
-  @keyframes unspool {
-    from { transform: scaleX(0); }
-    to   { transform: none; }
-  }
-  /* Two seconds: the first is the ride, at constant speed so the unrolling
-     can be seen; the second is the crouch, the arc and the landing, each
-     segment with its own curve. */
-  .rollin .mascot {
-    --far: min(250px, 36vw);
-    --near: max(-190px, -28vw);
-    transform-origin: 50% 85%;
-    animation: unfurl 2s linear both;
+  /* The empty state: the six frames of the unfurl, 200 ms apiece, then a
+     settle once the last one is up. jump-none lands exactly on each frame,
+     first and last included. */
+  .empty .mascot {
+    animation:
+      unfurl 1.2s steps(6, jump-none) both,
+      settle 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 1.2s both;
   }
   @keyframes unfurl {
-    0%   { transform: translate(var(--far), 0)   rotate(720deg) scale(0.22, 0.22); animation-timing-function: linear; }
-    50%  { transform: translate(var(--near), 0)  rotate(0deg)   scale(1, 1);       animation-timing-function: ease-in; }
-    57%  { transform: translate(var(--near), 0)  rotate(0deg)   scale(1.1, 0.84);  animation-timing-function: ease-out; }
-    70%  { transform: translate(calc(var(--near) / 2), -120px) rotate(8deg) scale(0.94, 1.08); animation-timing-function: ease-in; }
-    83%  { transform: translate(0, 0)            rotate(0deg)   scale(1, 1);       animation-timing-function: ease-out; }
-    88%  { transform: translate(0, 0)            rotate(0deg)   scale(1.12, 0.86); animation-timing-function: ease-out; }
-    100% { transform: translate(0, 0)            rotate(0deg)   scale(1, 1); }
+    from { background-position: 0 0; }
+    to   { background-position: 100% 0; }
   }
-}}}
+  @keyframes settle {
+    0%   { transform: scale(1.06, 0.9); }
+    55%  { transform: scale(0.97, 1.04); }
+    100% { transform: none; }
+  }
+}}}}
 
 @media (max-width: 620px) {
   .masthead { padding-top: 16px; }
