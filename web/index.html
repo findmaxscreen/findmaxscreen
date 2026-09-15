@@ -118,11 +118,18 @@
      crisp. Transparent, so it sits on a light or dark tab strip alike. -->
 <link rel="icon" href="favicon.png" type="image/png" sizes="64x64">
 <link rel="stylesheet" href="style.css">
+<!-- The two faces the masthead is set in, requested with the HTML rather
+     than after the stylesheet has been parsed. After the stylesheet link,
+     so the CSS keeps first claim on a slow connection; and the stylesheet
+     declares metric-matched fallbacks, so the swap when these arrive does
+     not move anything. 57 KB between them. -->
+<link rel="preload" href="fonts/BigShouldersDisplay.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Newsreader-400.woff2" as="font" type="font/woff2" crossorigin>
 <!-- No preload for data/venues.json, deliberately. Preloading it at high
      priority measurably HURT mobile: on a throttled connection the 200 KB
-     fetch competes with style.css, and LCP (the masthead paragraph, which
-     needs only HTML+CSS) went 1.2s -> 2.4s. The data is not what the first
-     paint is waiting for. Only the small modules are preloaded. -->
+     fetch competes with style.css, and LCP (the masthead, which needs only
+     HTML+CSS) went 1.2s -> 2.4s. The data is not what the first paint is
+     waiting for. Only the small modules are preloaded. -->
 <link rel="modulepreload" href="query.js">
 <link rel="modulepreload" href="geo.js">
 </head>

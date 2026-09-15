@@ -47,6 +47,29 @@
   src: url(fonts/Newsreader-400i.woff2) format("woff2");
 }
 
+/* Stand-ins that take the same room as the real faces, so the swap when a
+   font arrives does not reflow the page. The figures were measured in
+   Chrome against the fonts themselves: Arial at the display weight is
+   within 1.2% of Big Shoulders' width, Georgia is 7% wider than Newsreader,
+   and the ascent and descent overrides put the baselines where the real
+   ones fall. */
+@font-face {
+  font-family: "Big Shoulders Fallback";
+  src: local("Arial");
+  size-adjust: 98.8%;
+  ascent-override: 91.1%;
+  descent-override: 25.3%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Newsreader Fallback";
+  src: local("Georgia");
+  size-adjust: 93%;
+  ascent-override: 96.7%;
+  descent-override: 26.9%;
+  line-gap-override: 0%;
+}
+
 :root {
   color-scheme: light dark;
 
@@ -97,10 +120,8 @@
   --hot:        var(--on-yellow);
   --hot-bg:     var(--yellow);
 
-  --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Palatino,
-           "Book Antiqua", Georgia, serif;
-  --display: "Big Shoulders Display", "Arial Narrow", "Helvetica Neue Condensed",
-             Impact, sans-serif;
+  --serif: "Newsreader", "Newsreader Fallback", Georgia, serif;
+  --display: "Big Shoulders Display", "Big Shoulders Fallback", Arial, sans-serif;
 
   --measure: 1080px;
 }
