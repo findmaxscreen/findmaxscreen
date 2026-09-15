@@ -833,8 +833,10 @@ space as `+`, which mail clients render literally in a subject line.
 - **The mascot** is a haetae, the Seoul guardian creature, drawn flat in the
   three poster colours, with a tail that is a curl of film. Three sprite
   sheets ship as small transparent PNGs in `web/`, each stepped through by
-  CSS: beside the wordmark and in the empty-results state it unfurls out of
-  its own tail on six frames (`mascot-hello.png`, `mascot-unfurl.png`); on
+  CSS: beside the wordmark and in the empty-results state it arrives rolled
+  up like a ball with its film tail wrapped round the outside, rolls in on a
+  transform, and unrolls through drawn frames into the finished pose
+  (`mascot-hello.png`, seven frames; `mascot-unfurl.png`, five); on
   the search strip it holds a magnifying glass that swells and shrinks on a
   four-frame loop while a search is in flight (`mascot-searching.png`).
   Frames are keyed out and cropped to one shared bounding box so they stay

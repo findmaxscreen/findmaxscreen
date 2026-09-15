@@ -305,18 +305,22 @@ a:hover { text-decoration-color: var(--ink); }
   outline-offset: 4px;
   border-radius: 2px;
 }
-/* The mascot stands beside the wordmark: five frames on a sheet 500% wide,
-   the last of which is the finished character, unfurled from its tail on
-   load. Its outlines are the ink, which vanishes into the dark sheet, so
-   the evening edition gives it a hairline of light behind the edges. */
+/* The mascot beside the wordmark: seven frames on a sheet 700% wide. The
+   first is the character rolled up like a ball, its film tail wrapped round
+   the outside; it rolls in on load and the remaining frames unroll it into
+   the finished pose, which the sheet ends on and reduced-motion shows at
+   once. Each frame is pinned to the ground in the sheet itself, so nothing
+   sinks as it unrolls. The rotation centre is the curled body's own centre.
+   Its outlines are the ink, which vanishes into the dark sheet, so the
+   evening edition gives it a hairline of light behind the edges. */
 .masthead h1 .mark {
   display: block;
-  width: 58px;
+  width: 66px;
   height: 64px;
   flex: none;
   margin: -14px 0 -10px;
-  background: url(mascot-hello.png) 100% 0 / 500% 100% no-repeat;
-  transform-origin: 50% 100%;
+  background: url(mascot-hello.png) 100% 0 / 700% 100% no-repeat;
+  transform-origin: 48% 61.7%;
 }
 :root[data-theme="dark"] .mark { filter: drop-shadow(0 0 1px #ffffffb0); }
 @media (prefers-color-scheme: dark) {
@@ -1174,15 +1178,16 @@ button.ghost.small .icon { font-size: 14px; }
 }
 .empty p { margin: 0; }
 .empty .ways { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 18px; }
-/* Six frames on one sheet, 600% wide; background-position steps from the
-   first frame to the last, which is the finished pose. */
+/* Five frames on one sheet, 500% wide: rolled up, loosening, head up,
+   nearly there, and the slumped pose the sheet ends on. Same construction
+   as the wordmark's, at the empty state's size. */
 .empty .mascot {
   display: block;
-  width: 218px;
+  width: 243px;
   height: 240px;
   margin: 0 auto 8px;
-  background: url(mascot-unfurl.png) 100% 0 / 600% 100% no-repeat;
-  transform-origin: 50% 100%;
+  background: url(mascot-unfurl.png) 100% 0 / 500% 100% no-repeat;
+  transform-origin: 47% 62.1%;
 }
 :root[data-theme="dark"] .empty .mascot { filter: drop-shadow(0 0 1px #ffffffb0); }
 @media (prefers-color-scheme: dark) {
@@ -1409,16 +1414,40 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
     from { transform: translate(10px, 10px); }
     to   { transform: none; }
   }
-  /* Five frames here, not six: the drawing with the film draped over the
-     eyes was dropped. */
-  .masthead h1 .mark { animation: unfurl 1.2s steps(5, jump-none) both; }
+  /* The roll, then the unroll. Two animations on one element: the roll
+     moves it and pins the sheet to the first frame; the unroll, listed
+     second so it wins once its delay is up, steps the sheet from the second
+     frame to the last. It fills forwards only, so during the roll the base
+     rule does not show its first keyframe. The wordmark's rolls in from the
+     left, since that is where the page's edge is. */
+  .masthead h1 .mark {
+    animation:
+      rollin-left 1.15s cubic-bezier(0.25, 0.7, 0.25, 1) both,
+      unroll-7 0.9s steps(6, jump-none) 1.15s forwards;
+  }
+  @keyframes rollin-left {
+    from { transform: translateX(-72px) rotate(-720deg); background-position: 0 0; }
+    to   { transform: none;                             background-position: 0 0; }
+  }
+  /* Frame k of seven sits at (k-1)/6 of the sheet: the second is 16.667%. */
+  @keyframes unroll-7 {
+    from { background-position: 16.667% 0; }
+    to   { background-position: 100% 0; }
+  }
 
-  /* The empty state: the six frames of the unfurl, 200 ms apiece, and it
-     stays on the last one. jump-none lands exactly on each frame, first and
-     last included. */
-  .empty .mascot { animation: unfurl 1.2s steps(6, jump-none) both; }
-  @keyframes unfurl {
-    from { background-position: 0 0; }
+  /* The empty state: rolls in from the right, then four frames unroll it.
+     Frame k of five sits at (k-1)/4 of the sheet: the second is 25%. */
+  .empty .mascot {
+    animation:
+      rollin-right 1.15s cubic-bezier(0.25, 0.7, 0.25, 1) both,
+      unroll-5 0.6s steps(4, jump-none) 1.15s forwards;
+  }
+  @keyframes rollin-right {
+    from { transform: translateX(260px) rotate(720deg); background-position: 0 0; }
+    to   { transform: none;                             background-position: 0 0; }
+  }
+  @keyframes unroll-5 {
+    from { background-position: 25% 0; }
     to   { background-position: 100% 0; }
   }
 }}}}
