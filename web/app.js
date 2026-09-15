@@ -869,13 +869,20 @@ function render() {
   results.replaceChildren();
   if (!result.venues.length) {
     const empty = el("div", "empty");
-    // The mascot, let down. Decorative: the two lines under it say it all.
+    // The mascot rolls in off a reel of film and lands, let down. All of it
+    // decorative - the two lines under it say what happened - and the whole
+    // scene is CSS transforms, so reduced-motion gets the still frame.
+    const scene = el("div", "rollin");
+    const strip = el("span", "filmstrip");
+    const reel = icon("reel");
+    reel.classList.add("reel");
     const sad = el("img", "mascot");
     sad.src = "mascot-sad.png";
     sad.width = 200;
     sad.height = 200;
     sad.alt = "";
-    empty.append(sad);
+    scene.append(strip, reel, sad);
+    empty.append(scene);
     empty.append(el("p", "big", "Nothing matches all of that."));
     empty.append(el("p", null,
       "IMAX is a short list to begin with — try dropping a filter."));

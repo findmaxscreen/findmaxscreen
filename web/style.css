@@ -1119,6 +1119,52 @@ button.ghost.small .icon { font-size: 14px; }
   height: 200px;
   margin: 0 auto 8px;
 }
+
+/* The scene: a reel at the right, a strip of film unspooling from it to the
+   left, and the mascot rolling along the strip to the middle. Sized in px
+   because the mascot is a bitmap with a fixed size; on a phone the strip
+   just runs shorter. */
+.rollin {
+  position: relative;
+  width: min(100%, 560px);
+  height: 236px;
+  margin: 0 auto 4px;
+}
+.rollin .filmstrip {
+  position: absolute;
+  left: 0;
+  right: 52px;
+  bottom: 16px;
+  height: 22px;
+  /* Film is dark in both themes, so the constant ink, not the themed one -
+     with a hairline in the themed rule colour, invisible on periwinkle and
+     the edge that keeps the strip from sinking into the dark ground. */
+  background-color: var(--on-green);
+  box-shadow: 0 0 0 1px var(--rule-firm);
+  /* Perforations along both edges, in the poster yellow. */
+  background-image:
+    repeating-linear-gradient(to right, var(--yellow) 0 6px, transparent 6px 14px),
+    repeating-linear-gradient(to right, var(--yellow) 0 6px, transparent 6px 14px);
+  background-size: 100% 4px, 100% 4px;
+  background-position: 4px 4px, 4px 14px;
+  background-repeat: no-repeat;
+  transform-origin: right center;
+}
+.rollin .reel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 56px;
+  height: 56px;
+  color: var(--ink);
+  stroke-width: 1.4;
+}
+.rollin .mascot {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  margin: 0 0 0 -100px;
+}
 :root[data-theme="dark"] .empty .mascot { filter: drop-shadow(0 0 1px #ffffffb0); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .empty .mascot { filter: drop-shadow(0 0 1px #ffffffb0); }
@@ -1332,16 +1378,44 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
 
 @media (prefers-reduced-motion: no-preference) {
   /* One moment on load: the title frame is pasted onto the sheet - it starts
-     flat on its shadow and lifts off it. Only the position is animated:
-     Chrome resolves a light-dark() colour inside @keyframes to its light
-     value whatever the theme, so a keyframe naming the frame's background
-     painted it white in the dark theme until the animation ended. */
+     flat on its shadow and lifts off it - while the mascot's head rolls in
+     from the left to take its place by the wordmark. Only positions are
+     animated: Chrome resolves a light-dark() colour inside @keyframes to its
+     light value whatever the theme, so a keyframe naming the frame's
+     background painted it white in the dark theme until the animation ended. */
   .frame {
     animation: paste 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
   @keyframes paste {
     from { transform: translate(10px, 10px); }
     to   { transform: none; }
+  }
+  .masthead h1 .mark {
+    animation: markroll 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  @keyframes markroll {
+    from { transform: translateX(-56px) rotate(-360deg); }
+    to   { transform: none; }
+  }
+
+  /* The empty state: the reel turns, the strip unspools off it, and the
+     mascot rolls the length of the strip, lands, and settles. */
+  .rollin .reel { animation: reelspin 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  @keyframes reelspin {
+    from { transform: rotate(540deg); }
+    to   { transform: none; }
+  }
+  .rollin .filmstrip { animation: unspool 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  @keyframes unspool {
+    from { transform: scaleX(0); }
+    to   { transform: none; }
+  }
+  .rollin .mascot { animation: rollin 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  @keyframes rollin {
+    0%   { transform: translateX(min(260px, 40vw)) rotate(720deg); }
+    72%  { transform: translateX(0) rotate(0deg); }
+    86%  { transform: translateY(-8px) rotate(-3deg); }
+    100% { transform: none; }
   }
 }
 
