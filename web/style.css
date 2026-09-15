@@ -1398,26 +1398,38 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
     to   { transform: none; }
   }
 
-  /* The empty state: the reel turns, the strip unspools off it, and the
-     mascot rolls the length of the strip, lands, and settles. */
+  /* The empty state. The reel turns and the strip unspools off it to the
+     left; the mascot rides the strip's leading edge as a tight coil - its
+     tail is a curl of film, so this is where it comes from - unfurling and
+     growing to full size as the strip runs out, then crouches and jumps the
+     rest of the way into the middle, landing with a squash. Every frame
+     names the same four functions so the interpolation stays honest. */
   .rollin .reel { animation: reelspin 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   @keyframes reelspin {
-    from { transform: rotate(540deg); }
+    from { transform: rotate(720deg); }
     to   { transform: none; }
   }
-  .rollin .filmstrip { animation: unspool 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .rollin .filmstrip { animation: unspool 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   @keyframes unspool {
     from { transform: scaleX(0); }
     to   { transform: none; }
   }
-  .rollin .mascot { animation: rollin 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  @keyframes rollin {
-    0%   { transform: translateX(min(260px, 40vw)) rotate(720deg); }
-    72%  { transform: translateX(0) rotate(0deg); }
-    86%  { transform: translateY(-8px) rotate(-3deg); }
-    100% { transform: none; }
+  .rollin .mascot {
+    --far: min(250px, 36vw);
+    --near: max(-190px, -28vw);
+    transform-origin: 50% 85%;
+    animation: unfurl 2.1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
-}
+  @keyframes unfurl {
+    0%   { transform: translate(var(--far), 0)   rotate(900deg) scale(0.22, 0.22); }
+    52%  { transform: translate(var(--near), 0)  rotate(0deg)   scale(1, 1); }
+    58%  { transform: translate(var(--near), 0)  rotate(0deg)   scale(1.08, 0.86); }
+    62%  { transform: translate(var(--near), 0)  rotate(-4deg)  scale(0.96, 1.06); }
+    80%  { transform: translate(calc(var(--near) / 2), -110px) rotate(6deg) scale(1, 1); }
+    95%  { transform: translate(0, 0)            rotate(0deg)   scale(1.1, 0.88); }
+    100% { transform: translate(0, 0)            rotate(0deg)   scale(1, 1); }
+  }
+}}
 
 @media (max-width: 620px) {
   .masthead { padding-top: 16px; }
