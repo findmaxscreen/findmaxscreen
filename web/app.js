@@ -869,6 +869,13 @@ function render() {
   results.replaceChildren();
   if (!result.venues.length) {
     const empty = el("div", "empty");
+    // The mascot, let down. Decorative: the two lines under it say it all.
+    const sad = el("img", "mascot");
+    sad.src = "mascot-sad.png";
+    sad.width = 200;
+    sad.height = 200;
+    sad.alt = "";
+    empty.append(sad);
     empty.append(el("p", "big", "Nothing matches all of that."));
     empty.append(el("p", null,
       "IMAX is a short list to begin with — try dropping a filter."));

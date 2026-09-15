@@ -830,6 +830,13 @@ space as `+`, which mail clients render literally in a subject line.
   the OS. The dark palette keeps the three poster colours and swaps the
   grounds under them: a deep green sheet with a yellow wordmark, a near-black
   list. It is not a grey inversion.
+- **The mascot** is a haetae, the Seoul guardian creature, drawn flat in the
+  three poster colours. Three cut-outs ship as small transparent PNGs in
+  `web/`: the head beside the wordmark, the searching pose on the search
+  strip, and the let-down pose in the empty-results state. The dark theme
+  gives each a hairline of light so the ink outlines do not sink into the
+  ground. Rendered by the Codex Image Generation skill; the full-size
+  originals are not in the repo.
 - **Icons are inline SVG**, drawn in `index.html` as a `<symbol>` sprite and
   referenced with `<use>`. Monochrome, `currentColor`, so one drawing serves
   both themes and there is no icon font or CDN. Sprite entries must be

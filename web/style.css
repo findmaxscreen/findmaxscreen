@@ -277,31 +277,22 @@ a:hover { text-decoration-color: var(--ink); }
   outline-offset: 4px;
   border-radius: 2px;
 }
-/* Sized to the cap height of the wordmark rather than to the em: the reel is
-   only about half the width of its own 24-unit box - the rest is the film
-   running off it - so a glyph sized to the caps renders a reel half their
-   height. */
-.masthead h1 .icon {
-  font-size: 1.1em;
-  stroke-width: 1.5;
-  color: var(--accent);
+/* The mascot's head stands in for an icon beside the wordmark. Its outlines
+   are the ink, which vanishes into the dark sheet, so the evening edition
+   gives it a hairline of light behind the edges. */
+.masthead h1 .mark {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  margin-top: -6px;
 }
-
-/* The one rule the palette's light-dark() cannot carry, because stroke-width is
-   a number rather than a colour - so this is the single place in the file that
-   has to name the two themes itself.
-
-   Pale strokes on a dark ground bloom. The reel's four holes and its hub sit
-   close together, and at 1.5 they thicken into a cluster with the gaps closed;
-   1.15 makes the dark version read at the weight the light one already has. */
-:root[data-theme="dark"] .masthead h1 .icon { stroke-width: 1.15; }
-
+:root[data-theme="dark"] .mark { filter: drop-shadow(0 0 1px #ffffffb0); }
 @media (prefers-color-scheme: dark) {
   /* "auto" is the absence of the attribute, not a value of it, so this has to
      match on not-light rather than on nothing - otherwise a visitor who has
-     deliberately chosen the light theme on a dark system gets the thin stroke
-     against paper, where it looks anaemic. */
-  :root:not([data-theme="light"]) .masthead h1 .icon { stroke-width: 1.15; }
+     deliberately chosen the light theme on a dark system gets the halo on
+     yellow, where it reads as a smudge. */
+  :root:not([data-theme="light"]) .mark { filter: drop-shadow(0 0 1px #ffffffb0); }
 }
 
 /* Under the question, in the reading face's italic: the answer's tone of
@@ -506,14 +497,25 @@ a:hover { text-decoration-color: var(--ink); }
    on-green ink and a white ground rather than the themed frame colours. */
 .strip {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: auto 1fr;
   gap: 10px;
   padding: 10px;
+  align-items: center;
   background: var(--green);
   box-shadow: 8px 8px 0 var(--ink);
 }
+.strip .quickfilters { grid-column: 1 / -1; }
 @media (min-width: 720px) {
-  .strip { grid-template-columns: 1fr auto; align-items: center; }
+  .strip { grid-template-columns: auto 1fr auto; }
+  .strip .quickfilters { grid-column: auto; }
+}
+/* The mascot peers over the search box: a little taller than the strip's
+   row, so its horn breaks the top edge. */
+.searchmascot {
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin: -14px 0 -6px 2px;
 }
 
 .searchrow { display: flex; align-items: center; gap: 10px; position: relative; min-width: 0; }
@@ -1111,6 +1113,16 @@ button.ghost.small .icon { font-size: 14px; }
   border-bottom: 1px solid var(--rule);
 }
 .empty p { margin: 0; }
+.empty .mascot {
+  display: block;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 8px;
+}
+:root[data-theme="dark"] .empty .mascot { filter: drop-shadow(0 0 1px #ffffffb0); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .empty .mascot { filter: drop-shadow(0 0 1px #ffffffb0); }
+}
 .empty .big {
   margin-bottom: 6px;
   font-family: var(--display);

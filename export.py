@@ -59,7 +59,9 @@ PUBLIC_FILES = ("index.html", "app.js", "query.js", "geo.js", "style.css",
                 # and a missing one falls back silently to a system face, so
                 # they are required rather than optional.
                 "fonts/BigShouldersDisplay.woff2", "fonts/Newsreader-400.woff2",
-                "fonts/Newsreader-600.woff2", "fonts/Newsreader-400i.woff2")
+                "fonts/Newsreader-600.woff2", "fonts/Newsreader-400i.woff2",
+                # The mascot: the wordmark's head and the empty-state pose.
+                "mascot-head.png", "mascot-search.png", "mascot-sad.png")
 PUBLIC_DATA = ("data/venues.json",)
 
 # Shipped when present, but their absence is not an error.  GitHub Pages reads
