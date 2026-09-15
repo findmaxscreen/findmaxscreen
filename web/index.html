@@ -272,7 +272,7 @@
          without the reload. -->
     <div class="mast">
       <h1><a href="./" id="home" title="Back to the start — clears every filter"
-        ><img class="mark" src="mascot-head.png" width="48" height="48" alt="">Find <b>Max</b> Screen</a></h1>
+        ><span class="mark" aria-hidden="true"></span>Find <b>Max</b> Screen</a></h1>
       <button type="button" id="theme" class="themetoggle" title="Switch theme">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
         <span id="thememode">Auto</span>
@@ -357,8 +357,11 @@
          one bar, lifted on the same hard shadow as the tabs. The panel and
          the active-filter row stay outside it, on the page. -->
     <div class="strip">
-    <!-- The mascot, looking. Decorative; the input beside it is labelled. -->
-    <img class="mascot searchmascot" src="mascot-search.png" width="56" height="56" alt="">
+    <!-- The mascot, looking. Five frames on a sprite sheet: at rest it holds
+         the glass still, and while a search is in flight app.js adds
+         .searching and the glass swells and shrinks. Decorative; the input
+         beside it is labelled. -->
+    <div class="mascot searchmascot" aria-hidden="true"></div>
     <div class="searchrow">
       <svg class="icon searchicon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"></use></svg>
       <input type="search" id="q" placeholder="Search a city, country, or theatre…  (press /)"

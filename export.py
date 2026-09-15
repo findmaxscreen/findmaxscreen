@@ -61,7 +61,7 @@ PUBLIC_FILES = ("index.html", "app.js", "query.js", "geo.js", "style.css",
                 "fonts/BigShouldersDisplay.woff2", "fonts/Newsreader-400.woff2",
                 "fonts/Newsreader-600.woff2", "fonts/Newsreader-400i.woff2",
                 # The mascot: the wordmark's head and the empty-state pose.
-                "mascot-head.png", "mascot-search.png", "mascot-unfurl.png",
+                "mascot-hello.png", "mascot-searching.png", "mascot-unfurl.png",
                 "favicon.png")
 PUBLIC_DATA = ("data/venues.json",)
 

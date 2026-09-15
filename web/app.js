@@ -1258,6 +1258,16 @@ function wire() {
   $("controls").addEventListener("submit", (event) => event.preventDefault());
 
   CONTROLS.q.addEventListener("input", debounce(update, 160));
+  // The mascot on the strip searches while you type: the loop starts on the
+  // first keystroke and runs until the results have been on screen for a
+  // moment, since the search itself is too quick to see.
+  const seeker = document.querySelector(".searchmascot");
+  let seeking;
+  CONTROLS.q.addEventListener("input", () => {
+    seeker?.classList.add("searching");
+    clearTimeout(seeking);
+    seeking = setTimeout(() => seeker?.classList.remove("searching"), 900);
+  });
   for (const key of ["projector", "ar"]) {
     CONTROLS[key].addEventListener("change", update);
   }

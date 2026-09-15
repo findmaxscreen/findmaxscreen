@@ -277,14 +277,18 @@ a:hover { text-decoration-color: var(--ink); }
   outline-offset: 4px;
   border-radius: 2px;
 }
-/* The mascot's head stands in for an icon beside the wordmark. Its outlines
-   are the ink, which vanishes into the dark sheet, so the evening edition
-   gives it a hairline of light behind the edges. */
+/* The mascot stands beside the wordmark: six frames on a sheet 600% wide,
+   the last of which is the finished character, unfurled from its tail on
+   load. Its outlines are the ink, which vanishes into the dark sheet, so
+   the evening edition gives it a hairline of light behind the edges. */
 .masthead h1 .mark {
-  width: 48px;
-  height: 48px;
+  display: block;
+  width: 58px;
+  height: 64px;
   flex: none;
-  margin-top: -6px;
+  margin: -14px 0 -10px;
+  background: url(mascot-hello.png) 100% 0 / 600% 100% no-repeat;
+  transform-origin: 50% 100%;
 }
 :root[data-theme="dark"] .mark { filter: drop-shadow(0 0 1px #ffffffb0); }
 @media (prefers-color-scheme: dark) {
@@ -510,12 +514,25 @@ a:hover { text-decoration-color: var(--ink); }
   .strip .quickfilters { grid-column: auto; }
 }
 /* The mascot peers over the search box: a little taller than the strip's
-   row, so its horn breaks the top edge. */
+   row, so its horn breaks the top edge. Five frames on a sheet 500% wide;
+   at rest it shows the first. */
 .searchmascot {
   display: block;
-  width: 56px;
-  height: 56px;
-  margin: -14px 0 -6px 2px;
+  width: 55px;
+  height: 64px;
+  margin: -16px 0 -8px 2px;
+  background: url(mascot-searching.png) 0 0 / 500% 100% no-repeat;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Frames one to four, then round again: the glass swells and shrinks
+     while the search runs. */
+  .searchmascot.searching { animation: seeking 0.8s steps(4) infinite; }
+  /* Five frames sit at 0, 25, 50, 75 and 100%; four steps from 0 to 100%
+     land on the first four and wrap. */
+  @keyframes seeking {
+    from { background-position: 0 0; }
+    to   { background-position: 100% 0; }
+  }
 }
 
 .searchrow { display: flex; align-items: center; gap: 10px; position: relative; min-width: 0; }
@@ -1349,11 +1366,9 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
     to   { transform: none; }
   }
   .masthead h1 .mark {
-    animation: markroll 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-  }
-  @keyframes markroll {
-    from { transform: translateX(-56px) rotate(-360deg); }
-    to   { transform: none; }
+    animation:
+      unfurl 1.2s steps(6, jump-none) both,
+      settle 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 1.2s both;
   }
 
   /* The empty state: the six frames of the unfurl, 200 ms apiece, then a
