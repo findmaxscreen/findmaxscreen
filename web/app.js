@@ -1419,6 +1419,11 @@ async function start() {
   $("tagline").textContent =
     `${fmt.format(s.venues)} IMAX theatres across ${fmt.format(s.countries)} countries. `
     + `Only ${fmt.format(s.film70)} still run 15/70 mm film — those are the ones worth travelling for.`;
+  // The three numbers beside the question, from the same stats block.
+  for (const [id, n] of [["stat-film70", s.film70], ["stat-venues", s.venues],
+                         ["stat-countries", s.countries], ["stat-dome", s.dome]]) {
+    $(id).textContent = fmt.format(n);
+  }
 
   renderReportNote(data.links || {});
 

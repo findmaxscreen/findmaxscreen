@@ -157,25 +157,78 @@ a:hover { text-decoration-color: var(--ink); }
 
 /* The yellow sheet. Full-bleed, with the centring left to the inner .wrap. */
 .masthead {
-  padding: 26px 0 34px;
+  padding: 22px 0 34px;
   background: var(--stage);
   color: var(--stage-ink);
 }
-.masthead .wrap { position: relative; }
 
-/* The title block: white, with sprocket holes down its left edge and a hard
-   green shadow lifting it off the sheet. Content-sized rather than a fixed
-   ratio - the tagline is a live count and gets longer in some countries. */
+/* Top row: wordmark left, the joke and the theme switch right. */
+.mast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 21px;
+  padding-bottom: 26px;
+}
+.mast .jokeline { margin-left: auto; }
+
+/* The stage: the question on its frame, the numbers beside it. */
+.stage {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 34px;
+  align-items: end;
+}
+@media (min-width: 900px) { .stage { grid-template-columns: 5fr 3fr; } }
+
+/* The question block: white, with sprocket holes down its left edge and a
+   hard green shadow lifting it off the sheet. Content-sized in height - the
+   tagline is a live count and gets longer in some countries. */
 .frame {
   position: relative;
-  width: fit-content;
-  max-width: 100%;
-  margin-top: 8px;
-  padding: 26px 34px 24px 56px;
+  padding: 30px 34px 28px 58px;
   color: var(--frame-ink);
   background: var(--frame);
   box-shadow: 10px 10px 0 var(--frame-shadow);
 }
+.frame.slim { width: fit-content; max-width: 100%; padding: 14px 24px 14px 48px; }
+.headline {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(40px, 6.4vw, 80px);
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  max-width: 12ch;
+  color: var(--ink-strong);
+}
+
+/* The numbers: light, tall figures with the answer to the question - the
+   film count - the only one set in the accent. */
+.booth { display: grid; gap: 13px; margin: 0; align-content: end; }
+.booth .stat {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 13px;
+  align-items: baseline;
+  border-top: 1px solid var(--stage-rule);
+  padding-top: 13px;
+}
+.booth .stat:first-child { border-top: 0; padding-top: 0; }
+.booth dt {
+  font-family: var(--display);
+  font-size: 64px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--stage-ink);
+}
+.booth .stat:first-child dt { font-weight: 800; color: var(--accent); }
+.booth dd { margin: 0; font-size: 17px; color: var(--stage-muted); max-width: 30ch; }
 /* 15/70 runs three perforations to the frame; this rail keeps that rhythm at
    one hole per 24px. */
 .frame::before {
@@ -194,13 +247,14 @@ a:hover { text-decoration-color: var(--ink); }
   gap: 11px;
   margin: 0;
   font-family: var(--display);
-  font-size: 56px;
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: 0.005em;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: inherit;
 }
+.masthead h1 b { font-weight: 800; color: var(--accent); }
 /* The title is a link home, and looks like nothing of the sort in every state:
    no accent colour, no underline, not even on hover. A masthead is already
    understood to be the way back, and dressing it as body-copy link made the one
@@ -215,7 +269,7 @@ a:hover { text-decoration-color: var(--ink); }
 .masthead h1 a:active {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 9px;
   color: inherit;
   text-decoration: none;
 }
@@ -229,7 +283,7 @@ a:hover { text-decoration-color: var(--ink); }
    running off it - so a glyph sized to the caps renders a reel half their
    height. */
 .masthead h1 .icon {
-  font-size: 0.86em;
+  font-size: 1.1em;
   stroke-width: 1.5;
   color: var(--accent);
 }
@@ -251,24 +305,23 @@ a:hover { text-decoration-color: var(--ink); }
   :root:not([data-theme="light"]) .masthead h1 .icon { stroke-width: 1.15; }
 }
 
-/* Part of the wordmark, so it hugs the title. Set in the reading face so the
-   joke reads as a line of copy under a poster title, which is what it is. */
+/* Part of the wordmark's row. Set in the reading face so the joke reads as a
+   line of copy beside a poster title, which is what it is. */
 .jokeline {
-  margin: 10px 0 0;
+  margin: 0;
   font-size: 17px;
   font-style: italic;
-  color: inherit;
+  color: var(--stage-muted);
 }
 
+/* The live count, under the question. */
 .tagline {
-  margin: 6px 0 0;
-  font-size: 16px;
+  margin: 21px 0 0;
+  font-size: clamp(17px, 1.6vw, 20px);
+  max-width: 40ch;
   color: var(--muted-flat);
 }
-
-/* The joke belongs to the title above it; the live count belongs to the list
-   below. Enough of a gap to say so. */
-.jokeline + .tagline { margin-top: 12px; }
+.frame.slim .tagline { margin: 0; display: inline-flex; align-items: center; gap: 6px; }
 
 /* The one badge on the page that makes a claim about the page. Written on the
    sheet in ink, with a hairline: the yellow is already the loudest thing on
@@ -346,9 +399,6 @@ a:hover { text-decoration-color: var(--ink); }
 .filterpanel > summary { font-weight: 600; margin-top: 24px; }
 
 .themetoggle {
-  position: absolute;
-  top: 0;
-  right: 24px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -447,31 +497,47 @@ a:hover { text-decoration-color: var(--ink); }
 /* -------------------------------------------------------------- controls */
 
 #controls {
-  padding: 26px 0 20px;
+  padding: 30px 0 20px;
   margin: 0;
   border-bottom: 1px solid var(--rule);
 }
 
-.searchrow { display: flex; align-items: center; gap: 10px; position: relative; }
+/* The strip is green in both themes, so everything on it takes the constant
+   on-green ink and a white ground rather than the themed frame colours. */
+.strip {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 10px;
+  background: var(--green);
+  box-shadow: 8px 8px 0 var(--ink);
+}
+@media (min-width: 720px) {
+  .strip { grid-template-columns: 1fr auto; align-items: center; }
+}
+
+.searchrow { display: flex; align-items: center; gap: 10px; position: relative; min-width: 0; }
 .searchicon {
   position: absolute;
   margin-left: 12px;
   font-size: 17px;
-  color: var(--muted-flat);
+  color: var(--on-green);
+  opacity: 0.7;
   pointer-events: none;
 }
 
 #q {
   flex: 1;
+  min-width: 0;
   font: inherit;
   font-size: 17px;
   padding: 10px 14px 10px 38px;
-  color: var(--frame-ink);
-  background: var(--frame);
-  border: 1px solid var(--ink);
+  color: var(--on-green);
+  background: #ffffff;
+  border: 1px solid var(--on-green);
   border-radius: 2px;
 }
-#q::placeholder { color: var(--muted-flat); opacity: 0.9; font-style: italic; }
+#q::placeholder { color: var(--on-green); opacity: 0.7; font-style: italic; }
 #q:focus-visible,
 select:focus-visible,
 button:focus-visible {
@@ -496,33 +562,56 @@ button.ghost:hover { border-color: var(--accent); }
 button.ghost:disabled { opacity: 0.5; cursor: progress; }
 
 .toggles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+/* A switch that looks like one: a pill track drawn by ::before and a knob by
+   ::after, sliding along it. The state lives on aria-checked, so the selector
+   reads it there. The button itself is square-cornered white; the roundness
+   the by-role rule asks for is carried by the track. */
 .toggle {
+  --pad: 13px;
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 13px;
+  gap: 8px;
+  padding: 6px var(--pad);
   font-size: 14px;
-  color: var(--frame-ink);
-  background: var(--frame);
-  border: 1px solid var(--rule-firm);
-  /* The rule is by role, not by element: anything you press is rounded - these
-     switches, the filter chips, the ghost buttons - while rules, panels and the
-     inputs you type or choose into stay square. */
-  border-radius: 9px;
+  color: var(--on-green);
+  background: #ffffff;
+  border: 1px solid var(--on-green);
+  border-radius: 2px;
   cursor: pointer;
   user-select: none;
 }
-.toggle:hover { border-color: var(--ink); }
-/* Every switch turns yellow when it is on, the 70 mm one included. One state,
-   one colour - and the same yellow as the film badge, since it is the same
-   claim being made. */
-.toggle[aria-checked="true"] {
-  color: var(--hot);
-  background: var(--hot-bg);
-  border-color: var(--on-yellow);
+.toggle::before {
+  content: "";
+  flex: none;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--peri);
+  transition: background 0.2s;
 }
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: calc(var(--pad) + 3px);
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: left 0.2s;
+}
+.toggle:hover::before { background: var(--green); }
+/* On: the track goes to ink and the knob to the poster yellow - the same
+   yellow as the film badge, since it is the same claim being made. */
+.toggle[aria-checked="true"]::before { background: var(--on-green); }
+.toggle[aria-checked="true"]::after { left: calc(var(--pad) + 19px); background: var(--yellow); }
 .toggle .icon { font-size: 15px; opacity: 0.8; }
 .toggle[aria-checked="true"] .icon { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .toggle::before, .toggle::after { transition: none; }
+}
 
 /* The two filters worth a thumb, sitting between the tabs and the results. The
    70 mm one is the site's whole reason for existing, so it is sized to be hit
@@ -532,23 +621,22 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-top: 16px;
 }
 .toggle.big {
-  padding: 10px 18px;
+  --pad: 14px;
+  padding: 9px var(--pad);
   font-size: 15px;
-  border-radius: 11px;
 }
 .quickcountry {
   display: flex;
   align-items: center;
   gap: 8px;
   font-family: var(--display);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted-flat);
+  color: var(--on-green);
 }
 .quickcountry select {
   font: inherit;
@@ -556,10 +644,10 @@ button.ghost:disabled { opacity: 0.5; cursor: progress; }
   font-size: 15px;
   letter-spacing: normal;
   text-transform: none;
-  color: var(--frame-ink);
-  padding: 8px 10px;
-  background: var(--frame);
-  border: 1px solid var(--rule-firm);
+  color: var(--on-green);
+  padding: 9px 10px;
+  background: #ffffff;
+  border: 1px solid var(--on-green);
   border-radius: 2px;
 }
 
@@ -1242,10 +1330,11 @@ table.changes td.was { color: var(--muted-flat); text-decoration: line-through; 
 }
 
 @media (max-width: 620px) {
-  .masthead { padding-top: 18px; }
-  .masthead h1 { font-size: 40px; }
+  .masthead { padding-top: 16px; }
+  .mast { padding-bottom: 18px; }
+  .mast .jokeline { order: 3; flex-basis: 100%; margin-left: 0; }
   .frame { padding: 20px 20px 18px 44px; box-shadow: 7px 7px 0 var(--frame-shadow); }
-  .themetoggle { position: static; margin-bottom: 12px; }
+  .booth dt { font-size: 48px; }
   .tabs { box-shadow: 6px 6px 0 var(--ink); }
   .verdict-a { font-size: 38px; }
   /* No room for a second column on a phone: fold the links underneath. */

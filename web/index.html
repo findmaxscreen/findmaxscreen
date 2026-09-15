@@ -267,31 +267,39 @@
 
 <header class="masthead">
   <div class="wrap">
-    <button type="button" id="theme" class="themetoggle" title="Switch theme">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
-      <span id="thememode">Auto</span>
-    </button>
-    <!-- A real link to the site root, so middle-click and "open in new tab"
-         behave. app.js intercepts the plain left-click and clears everything in
-         place instead, which is the same destination without the reload. -->
-    <!-- The title block sits on its own white frame with sprocket holes down
-         the edge: the one picture on a page about film. Purely presentational,
-         which is why it is a div and carries no role. -->
-    <div class="frame">
-    <h1><a href="./" id="home" title="Back to the start — clears every filter"
-      ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reel"></use></svg>Find Max Screen</a></h1>
+    <!-- The top row: wordmark on the left, the joke and the theme switch on
+         the right. The wordmark is a real link to the site root, so middle-click
+         and "open in new tab" behave; app.js intercepts the plain left-click and
+         clears everything in place instead, which is the same destination
+         without the reload. -->
+    <div class="mast">
+      <h1><a href="./" id="home" title="Back to the start — clears every filter"
+        ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-reel"></use></svg>Find <b>Max</b> Screen</a></h1>
+      <!-- The joke only lands for the audience this site has - Nolan shot The
+           Odyssey on 15/70, which is the format the whole page is about - and
+           it is a subtitle, so anyone who misses it has lost nothing. -->
+      <p class="jokeline">Finding the best screen shouldn't be an Odyssey</p>
+      <button type="button" id="theme" class="themetoggle" title="Switch theme">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-auto"></use></svg>
+        <span id="thememode">Auto</span>
+      </button>
+    </div>
 
-    <!-- Static, and above the tagline rather than below it: this one belongs to
-         the wordmark, while the line under it is a live count read from
-         venues.json. Two greys stacked would read as one paragraph, so this
-         sits tight to the title and the tagline takes the gap.
-
-         The joke only lands for the audience this site has - Nolan shot The
-         Odyssey on 15/70, which is the format the whole page is about - and it
-         is a subtitle, so anyone who misses it has lost nothing. -->
-    <p class="jokeline">Finding the best screen shouldn't be an Odyssey</p>
-
-    <p class="tagline" id="tagline">Loading…</p>
+    <!-- The stage: the question on a white frame with sprocket holes down its
+         edge - the one picture on a page about film - and the three numbers
+         that answer it beside. The frame is presentational, so a div with no
+         role; the numbers are filled from venues.json by app.js, like the
+         tagline under the question. -->
+    <div class="stage">
+      <div class="frame">
+        <p class="headline">Which IMAX still runs real film?</p>
+        <p class="tagline" id="tagline">Loading…</p>
+      </div>
+      <dl class="booth">
+        <div class="stat"><dt id="stat-film70">—</dt><dd>theatres still project 15/70&nbsp;mm film.</dd></div>
+        <div class="stat"><dt id="stat-venues">—</dt><dd>IMAX theatres in the list, across <span id="stat-countries">—</span> countries.</dd></div>
+        <div class="stat"><dt id="stat-dome">—</dt><dd>of them are domes.</dd></div>
+      </dl>
     </div>
 
     <!-- Above "Why this exists", not below it: this is the claim a visitor
@@ -344,6 +352,10 @@
   <!-- No onsubmit attribute: the Content-Security-Policy above forbids inline
        handlers, so the Enter-key no-op is bound in wire() instead. -->
   <form id="controls" autocomplete="off">
+    <!-- The green strip: search, the 70 mm switch and the country picker in
+         one bar, lifted on the same hard shadow as the tabs. The panel and
+         the active-filter row stay outside it, on the page. -->
+    <div class="strip">
     <div class="searchrow">
       <svg class="icon searchicon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"></use></svg>
       <input type="search" id="q" placeholder="Search a city, country, or theatre…  (press /)"
@@ -373,6 +385,7 @@
         <span>Country</span>
         <select id="country"><option value="">Anywhere</option></select>
       </label>
+    </div>
     </div>
 
     <!-- Collapsed by default. On a phone the toggles and selects together push
