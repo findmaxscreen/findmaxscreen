@@ -140,6 +140,37 @@ jobs:
       - id: deploy
         uses: actions/deploy-pages@v5
 
+      # ---- wait for the origin ---------------------------------------------
+      # deploy-pages reports success when the deployment *record* succeeds, not
+      # when Pages is serving the new build. The gap is usually seconds, but it
+      # is real: on 2026-11-04 (run 41837940665) the verify step hit the site
+      # 0.4 s after "Reported success!" and got the previous day's venues.json.
+      # Worse than the red tick, the purge had already fired, so for the length
+      # of that gap any visitor would have had Cloudflare cache the stale file
+      # for a month. So: wait for the origin first, purge second.
+      #
+      # Each attempt carries a fresh query string. Cloudflare keys its cache on
+      # the query string and Pages ignores it, so every attempt is a MISS at the
+      # edge and reads whatever the origin is serving right now. Only a day that
+      # changed data can wait here at all; on a no-op day the count already
+      # matches. The ceiling is the origin's own max-age=600: a build still
+      # invisible after ten minutes is a problem, not propagation.
+      - name: Wait for the origin to serve the new build
+        run: |
+          URL="${{ steps.deploy.outputs.page_url }}"
+          EXPECTED=$(python3 -c "import json;print(json.load(open('dist/data/venues.json'))['stats']['venues'])")
+          for i in $(seq 1 40); do
+            LIVE=$(curl -sSfL "${URL}data/venues.json?ci=${{ github.run_id }}-wait-${i}" | python3 -c "import json,sys;print(json.load(sys.stdin)['stats']['venues'])" 2>/dev/null || true)
+            if [ "$LIVE" = "$EXPECTED" ]; then
+              echo "  ok   origin serves $LIVE venues (attempt $i)"
+              exit 0
+            fi
+            echo "  ..   origin serves ${LIVE:-nothing}, want $EXPECTED (attempt $i/40)"
+            sleep 15
+          done
+          echo "origin never caught up to the new build"
+          exit 1
+
       # Cloudflare holds this site for a month, so the deploy above is invisible
       # until the edge is purged. Deliberately fails the run on error: the deploy
       # has already happened by now, and a purge that quietly no-ops would pin
@@ -164,7 +195,8 @@ jobs:
       # fronted apex, and Cloudflare's cache key includes the query string, so
       # this is guaranteed a MISS — the check tests the deploy, not how fast the
       # purge propagated. GitHub Pages ignores query strings, so the origin
-      # response is unchanged.
+      # response is unchanged. The wait step above has already seen the origin
+      # serve the new count, so a mismatch here means it went backwards.
       #
       # Each assertion stands alone rather than as `check && echo ok`. Under
       # `bash -e` a failure inside a && list is not fatal unless it is the final
