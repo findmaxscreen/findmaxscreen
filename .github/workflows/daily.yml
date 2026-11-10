@@ -151,21 +151,26 @@ jobs:
       #
       # Each attempt carries a fresh query string. Cloudflare keys its cache on
       # the query string and Pages ignores it, so every attempt is a MISS at the
-      # edge and reads whatever the origin is serving right now. Only a day that
-      # changed data can wait here at all; on a no-op day the count already
-      # matches. The ceiling is the origin's own max-age=600: a build still
-      # invisible after ten minutes is a problem, not propagation.
+      # edge and reads whatever the origin is serving right now.
+      #
+      # The signal is the bundle's generated_at, which export.py stamps on every
+      # build. It is deliberately not the venue count: a count only moves when a
+      # venue is added or removed, so an edited venue or a code-only push would
+      # have sailed through here against a stale origin. The timestamp makes
+      # every deploy wait for its own build. The ceiling is the origin's own
+      # max-age=600: a build still invisible after ten minutes is a problem, not
+      # propagation.
       - name: Wait for the origin to serve the new build
         run: |
           URL="${{ steps.deploy.outputs.page_url }}"
-          EXPECTED=$(python3 -c "import json;print(json.load(open('dist/data/venues.json'))['stats']['venues'])")
+          EXPECTED=$(python3 -c "import json;print(json.load(open('dist/data/venues.json'))['generated_at'])")
           for i in $(seq 1 40); do
-            LIVE=$(curl -sSfL "${URL}data/venues.json?ci=${{ github.run_id }}-wait-${i}" | python3 -c "import json,sys;print(json.load(sys.stdin)['stats']['venues'])" 2>/dev/null || true)
+            LIVE=$(curl -sSfL "${URL}data/venues.json?ci=${{ github.run_id }}-wait-${i}" | python3 -c "import json,sys;print(json.load(sys.stdin)['generated_at'])" 2>/dev/null || true)
             if [ "$LIVE" = "$EXPECTED" ]; then
-              echo "  ok   origin serves $LIVE venues (attempt $i)"
+              echo "  ok   origin serves build $LIVE (attempt $i)"
               exit 0
             fi
-            echo "  ..   origin serves ${LIVE:-nothing}, want $EXPECTED (attempt $i/40)"
+            echo "  ..   origin serves build ${LIVE:-nothing}, want $EXPECTED (attempt $i/40)"
             sleep 15
           done
           echo "origin never caught up to the new build"
@@ -196,7 +201,7 @@ jobs:
       # this is guaranteed a MISS — the check tests the deploy, not how fast the
       # purge propagated. GitHub Pages ignores query strings, so the origin
       # response is unchanged. The wait step above has already seen the origin
-      # serve the new count, so a mismatch here means it went backwards.
+      # serve this build, so a mismatch here means it went backwards.
       #
       # Each assertion stands alone rather than as `check && echo ok`. Under
       # `bash -e` a failure inside a && list is not fatal unless it is the final
@@ -216,10 +221,12 @@ jobs:
           echo "checking $URL"
           curl -sSfL "${URL}${Q}" | grep -q "<title>Find Max Screen"
           echo "  ok   homepage serves"
-          EXPECTED=$(python3 -c "import json;print(json.load(open('dist/data/venues.json'))['stats']['venues'])")
-          LIVE=$(curl -sSfL "${URL}data/venues.json${Q}" | python3 -c "import json,sys;print(json.load(sys.stdin)['stats']['venues'])")
+          curl -sSfL "${URL}data/venues.json${Q}" -o "$RUNNER_TEMP/live.json"
+          EXPECTED=$(python3 -c "import json;print(json.load(open('dist/data/venues.json'))['generated_at'])")
+          LIVE=$(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/live.json'))['generated_at'])")
           test "$EXPECTED" = "$LIVE"
-          echo "  ok   live data has $LIVE venues"
+          VENUES=$(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/live.json'))['stats']['venues'])")
+          echo "  ok   live data is this run's build ($LIVE), $VENUES venues"
           CODE=$(curl -s -o /dev/null -w '%{http_code}' "${URL}admin.html${Q}")
           test "$CODE" = "404"
           echo "  ok   admin.html is not published (HTTP $CODE)"
